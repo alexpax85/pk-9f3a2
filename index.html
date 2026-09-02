@@ -8280,6 +8280,21 @@ function scafoConvesso(paths) {
   return h.length < 3 ? null : normalizza(h.map(q => ({ X: q[0], Y: q[1] })));
 }
 
+/* Un'ellisse (o un tondo, se i due raggi sono uguali) come poligono chiuso.
+   Sei lati per millimetro di raggio, mai meno di 64. Il caso peggiore e' il
+   tondo piccolo che si ferma al minimo di 64 lati: succede fino a 5,3 mm di
+   raggio, e li' la corda si scosta dall'arco di 0,006 mm — un terzo di
+   TOLL_ARCO. Piu' il raggio cresce, piu' lo scarto cala. */
+function ovale(cx, cy, rx, ry) {
+  const n = Math.max(64, Math.ceil((rx + ry) * 6)), p = [];
+  for (let i = 0; i < n; i++) {
+    const a = 2 * Math.PI * i / n;
+    p.push({ X: Math.round((cx + rx * Math.cos(a)) * S),
+             Y: Math.round((cy + ry * Math.sin(a)) * S) });
+  }
+  return normalizza(p);
+}
+
 /* La base: contorno ingrossato, oppure una piastra che contiene tutto. */
 function costruisciBase(pTutto, cfg) {
   const b = riquadro(pTutto);
@@ -8297,14 +8312,27 @@ function costruisciBase(pTutto, cfg) {
   }
   if (cfg.formaBase === 'ellisse') {
     const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
-    const rx = (b.w / 2 + m) * Math.SQRT2, ry = (b.h / 2 + m) * Math.SQRT2;
-    const n = Math.max(64, Math.ceil((rx + ry) * 6)), p = [];
-    for (let i = 0; i < n; i++) {
-      const a = 2 * Math.PI * i / n;
-      p.push({ X: Math.round((cx + rx * Math.cos(a)) * S),
-               Y: Math.round((cy + ry * Math.sin(a)) * S) });
+    // l'ellisse passa per gli angoli del riquadro allargato del bordo
+    return [ovale(cx, cy, (b.w / 2 + m) * Math.SQRT2, (b.h / 2 + m) * Math.SQRT2)];
+  }
+  if (cfg.formaBase === 'cerchio') {
+    /* Il tondo piu' stretto che contiene il disegno, centrato sul riquadro
+       cosi' la scritta resta in mezzo. Il raggio si misura sul punto del
+       disegno piu' lontano dal centro, non sugli angoli del riquadro: attorno
+       a una scritta larga e bassa gli angoli sono vuoti, e passare di li'
+       allargherebbe il tondo per niente: su «Viola» a 120 mm il disegno sta in
+       124,3 mm di diametro, passando per gli angoli ce ne vorrebbero 129,8.
+       Il bordo chiesto vale esattamente sul punto piu' lontano; in tutte le
+       altre direzioni il tondo e' per forza piu' abbondante. */
+    const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
+    let lontano = 0;
+    for (const path of pTutto) for (const q of path) {
+      const dx = q.X / S - cx, dy = q.Y / S - cy;
+      const d = dx * dx + dy * dy;
+      if (d > lontano) lontano = d;
     }
-    return [normalizza(p)];
+    const r = Math.sqrt(lontano) + m;
+    return [ovale(cx, cy, r, r)];
   }
   if (cfg.formaBase === 'sagoma') {
     const h = scafoConvesso(pTutto);
