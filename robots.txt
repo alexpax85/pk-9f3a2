@@ -1,0 +1,3 @@
+# Non e' un sito: e' uno strumento di lavoro. Che non finisca nei motori.
+User-agent: *
+Disallow: /
