@@ -108,6 +108,19 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 #contatore { text-align: center; color: var(--tenue); font-size: 14px; margin-top: 8px; }
 
 .scelte { display: grid; gap: 10px; }
+
+/* Il cursore della distanza. Pista e pomello grossi: si usa col dito, e su un
+   tablet il pomello di serie e' troppo piccolo da prendere. */
+.cursore { display: flex; align-items: center; gap: 12px; }
+.cursore .capo { font-size: 14px; color: var(--tenue); flex: 0 0 auto; }
+.cursore input[type=range] { flex: 1; min-width: 0; height: 34px; accent-color: var(--tinta); }
+.cursore input[type=number] {
+  width: 88px; flex: 0 0 auto; text-align: right; font: inherit; font-size: 18px;
+  padding: 10px 12px; border: 2px solid var(--linea); border-radius: 12px;
+  background: var(--carta); color: inherit;
+}
+.cursore input[type=number]:focus { outline: none; border-color: var(--tinta); }
+.cursore .unita { font-size: 14px; color: var(--tenue); flex: 0 0 auto; }
 .scelte.colori { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .scelte.misure { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
 
@@ -179,9 +192,6 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 .opScheda[aria-selected="true"] { background: var(--carta); color: var(--inchiostro); }
 #opCorpo { flex: 1 1 auto; overflow-y: auto; padding: 18px; background: var(--carta); }
 
-#tastierino { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 280px; margin: 18px auto; }
-#tastierino button { min-height: 62px; font-size: 24px; font-weight: 700; border-radius: 12px; border: 1px solid var(--linea); background: var(--carta); cursor: pointer; }
-#pinPunti { text-align: center; font-size: 30px; letter-spacing: 12px; min-height: 40px; color: var(--tinta); }
 
 /* elenco ordini a fisarmonica */
 .ordine { border: 1px solid var(--linea); border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
@@ -302,8 +312,8 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   <div id="opSchede" hidden>
     <button type="button" class="opScheda" data-op="ordini"   aria-selected="true">Ordini</button>
     <button type="button" class="opScheda" data-op="stampa"   aria-selected="false">Stampa</button>
-    <button type="button" class="opScheda" data-op="catalogo" aria-selected="false">Catalogo</button>
     <button type="button" class="opScheda" data-op="dispositivo" aria-selected="false">Dispositivo</button>
+    <button type="button" class="opScheda" data-op="catalogo" aria-selected="false">Catalogo</button>
   </div>
   <div id="opCorpo"></div>
 </div>
@@ -8778,7 +8788,6 @@ const FONT_INIZIALI = [
 const INIZIALE = {
   valuta: '€',
   mostraPrezzi: true,
-  pin: '1234',
   attesaReset: 90,               // secondi di inattivita' prima di ricominciare
   colori: [
     { nome: 'Bianco',        hex: '#f2f2ee' },
@@ -8817,7 +8826,6 @@ const INIZIALE = {
     ritocco: 0,
     riempiBuchi: true,
     crocini: true,               // i file escono gia' allineati fra loro
-    slotBobine: 4,               // quante bobine tiene caricate la stampante
     asola: true,
     foro: 3,
     anello: 2,
@@ -9170,6 +9178,11 @@ const POSIZIONI = {
   'destra':   'A destra',
 };
 
+/* Quante bobine tiene caricate la stampante in un colpo solo: e' l'AMS, non
+   una preferenza, quindi non sta nel catalogo. Se un giorno cambia stampante
+   si cambia qui, e piano.js lo prende come parametro apposta per questo. */
+const SLOT_BOBINE = 4;
+
 const PASSI = [
   { id: 'nome',   titolo: 'Il nome',    guida: 'Scrivi come vuoi che ci sia scritto.' },
   { id: 'stile',  titolo: 'Il carattere', guida: 'Tocca quello che ti piace di piu’.' },
@@ -9186,6 +9199,27 @@ let orologio = null;        // ritorno automatico alla schermata iniziale
 
 /* ---------------------------------------------------------------- scelte */
 
+/* «Distanza asola» e «sovrapposizione» sono la stessa cosa vista dai due lati.
+   Il motore ragiona di quanto il disco AFFONDA nel materiale; il cliente vede
+   invece quanto l'anello SPORGE oltre il bordo del pezzo, ed e' quello che
+   gli si chiede. Le due sommate fanno il diametro del disco, foro + 2 anello,
+   quindi si passa dall'una all'altra per differenza.
+   Serviva: con l'anello in alto al centro, se in mezzo al nome c'e' una
+   lettera bassa, il disco resta in cima al pezzo e scende un collo lungo. Nello
+   studio si rimedia alzando la sovrapposizione; qui non c'era modo. */
+const diametroAsola = (R) => R.foro + 2 * R.anello;
+/* Un millimetro di disco resta sempre fuori: a distanza zero l'anello sarebbe
+   tutto dentro la piastra e non ci sarebbe piu' niente da infilare. */
+const DISTANZA_MINIMA = 1;
+const distanzaDaSovrapp = (R, sovrapp) =>
+  Math.min(diametroAsola(R), Math.max(DISTANZA_MINIMA, diametroAsola(R) - sovrapp));
+const sovrappDaDistanza = (R, d) =>
+  /* Se la distanza manca o non e' un numero si torna a quella del catalogo:
+     questo programma sta acceso tutto il giorno su un tablet, e un NaN nella
+     geometria si vedrebbe solo quando il pezzo esce sbagliato dalla stampante. */
+  !isFinite(d) ? R.sovrapp
+  : Math.max(0, diametroAsola(R) - Math.min(diametroAsola(R), Math.max(DISTANZA_MINIMA, d)));
+
 function sceltaIniziale() {
   return {
     nome: '',
@@ -9194,6 +9228,7 @@ function sceltaIniziale() {
     coloreBase: (cat.colori[0] || {}).hex,
     coloreTesto: (cat.colori[1] || cat.colori[0] || {}).hex,
     posAsola: cat.asole[0] || cat.regole.posAsola,
+    distanza: distanzaDaSovrapp(cat.regole, cat.regole.sovrapp),
     misura: 0,
     // vero solo quando e' stato il cliente a toccare una misura: finche' e'
     // falso il chiosco e' libero di sceglierla da solo
@@ -9223,7 +9258,8 @@ function componiCfg(s, mod) {
     crocini: R.crocini,
     ritocco: R.ritocco,
     asola: R.asola, foro: R.foro, anello: R.anello,
-    posAsola: s.posAsola || R.posAsola, sovrapp: R.sovrapp,
+    posAsola: s.posAsola || R.posAsola,
+    sovrapp: s.distanza === undefined ? R.sovrapp : sovrappDaDistanza(R, s.distanza),
     asolaX: R.asolaX, asolaY: R.asolaY,
     minSpessore: R.minSpessore,
   };
@@ -9254,7 +9290,7 @@ function adatta(s) {
   if (!s.nome.trim()) return { vuoto: true };
 
   const chiave = s.nome + '\u0000' + s.fontId + '\u0000' + s.misura +
-                 '\u0000' + (s.posAsola || '');
+                 '\u0000' + (s.posAsola || '') + '\u0000' + s.distanza;
   if (memoria.has(chiave)) return memoria.get(chiave);
 
   const correzioni = [];
@@ -9463,8 +9499,43 @@ function pannelloMisura() {
       '<span class="titolo cresci">' + esc(POSIZIONI[k] || k) + '</span>' +
       '</button>').join('') + '</div></div>';
 
+  /* Il cursore della distanza compare solo se l'anello c'e' davvero: senza
+     asola non c'e' niente da allontanare. */
+  const R = cat.regole;
+  const dist = !R.asola ? '' :
+    '<div class="sezione"><h3>Distanza dell’anello</h3>' +
+    '<p>Quanto sta staccato dalla scritta. Se resta appeso a un collo lungo, ' +
+    'portalo più vicino.</p>' +
+    '<div class="cursore">' +
+    '<span class="capo">vicino</span>' +
+    '<input type="range" id="distanza" min="' + DISTANZA_MINIMA + '" ' +
+      'max="' + diametroAsola(R) + '" step="0.5" value="' + scelta.distanza + '">' +
+    '<span class="capo">lontano</span>' +
+    '<input type="number" id="distanzaN" min="' + DISTANZA_MINIMA + '" ' +
+      'max="' + diametroAsola(R) + '" step="0.5" value="' + scelta.distanza + '">' +
+    '<span class="unita">mm</span></div></div>';
+
   return '<h2>' + PASSI[3].titolo + '</h2><p class="guida">' + PASSI[3].guida + '</p>' +
-    misure + anello;
+    misure + anello + dist;
+}
+
+/* Cursore e casella si tengono allineati, come nello studio. Si ridisegna
+   subito la bozza e si rifa' il calcolo vero poco dopo: trascinando il cursore
+   arrivano decine di eventi, e ricostruire ogni volta a precisione piena
+   bloccherebbe il tablet. */
+function collegaDistanza() {
+  const r = $('#distanza'), n = $('#distanzaN');
+  if (!r) return;
+  const cambia = (v) => {
+    const d = Math.min(Number(r.max), Math.max(Number(r.min), Number(v) || 0));
+    scelta.distanza = d;
+    r.value = d; n.value = d;
+    bozza();
+    clearTimeout(attesaVera);
+    attesaVera = setTimeout(() => { rigenera(); spegniMisureCorte(); }, 120);
+  };
+  r.addEventListener('input', () => cambia(r.value));
+  n.addEventListener('input', () => cambia(n.value));
 }
 
 /* Le misure in cui il nome si romperebbe si spengono, con scritto perche'.
@@ -9505,7 +9576,7 @@ function disegnaPannello() {
   else if (PASSI[passo].id === 'misura') p.innerHTML = pannelloMisura();
   p.scrollTop = 0;
 
-  if (PASSI[passo].id === 'misura') setTimeout(spegniMisureCorte, 30);
+  if (PASSI[passo].id === 'misura') { setTimeout(spegniMisureCorte, 30); collegaDistanza(); }
   if (PASSI[passo].id === 'stile')  setTimeout(spegniCaratteriStretti, 30);
 
   if (PASSI[passo].id === 'nome') {
@@ -9743,20 +9814,17 @@ function conferma() {
 /*                        parte riservata all'operatore                  */
 /* ==================================================================== */
 
-let pinDigitato = '';
 let opScheda = 'ordini';
 
+/* La porta d'ingresso e' la pressione lunga sul marchio, e basta quella: il
+   tablet sta sul banco e chi ci arriva dietro e' gia' passato di li'. Il
+   codice a quattro cifre era una serratura su una stanza senza pareti, e
+   all'operatore costava un passaggio a ogni apertura. */
 function apriOperatore() {
-  pinDigitato = '';
   $('#operatore').hidden = false;
-  $('#opSchede').hidden = true;
-  $('#opTitolo').textContent = 'Codice operatore';
-  $('#opCorpo').innerHTML =
-    '<div id="pinPunti"></div><div id="tastierino">' +
-    [1,2,3,4,5,6,7,8,9].map(n => '<button type="button" data-cifra="' + n + '">' + n + '</button>').join('') +
-    '<button type="button" data-azione="cancella">←</button>' +
-    '<button type="button" data-cifra="0">0</button>' +
-    '<button type="button" data-azione="ok">OK</button></div>';
+  $('#opSchede').hidden = false;
+  $('#opTitolo').textContent = 'Operatore';
+  disegnaOperatore();
 }
 
 function chiudiOperatore() {
@@ -9768,20 +9836,11 @@ function chiudiOperatore() {
   if (!cat.colori.some(c => c.hex === scelta.coloreTesto))
     scelta.coloreTesto = (cat.colori[1] || cat.colori[0]).hex;
   if (!cat.asole.includes(scelta.posAsola)) scelta.posAsola = cat.asole[0];
+  // cambiando foro o anello nel catalogo, il fondo scala della distanza cambia
+  scelta.distanza = distanzaDaSovrapp(cat.regole, sovrappDaDistanza(cat.regole, scelta.distanza));
   if (scelta.misura >= cat.misure.length) scelta.misura = scelta.misuraVoluta = 0;
   rigenera();
   disegnaPannello();
-}
-
-function verificaPin() {
-  if (pinDigitato !== String(cat.pin)) {
-    $('#pinPunti').textContent = 'sbagliato';
-    pinDigitato = '';
-    return;
-  }
-  $('#opSchede').hidden = false;
-  $('#opTitolo').textContent = 'Operatore';
-  disegnaOperatore();
 }
 
 function disegnaOperatore() {
@@ -9889,6 +9948,9 @@ const RITOCCABILI = [
   ['bordo',      'Spessore bordo (mm)', 0.4, 10, 0.1],
   ['ritocco',    'Ritocco scritta (mm)', -1, 2, 0.05],
   ['foro',       'Foro asola (mm)', 1, 10, 0.1],
+  /* Qui si chiama col nome del motore, non «distanza»: chi ritocca un ordine
+     gia' preso e' lo stesso che usa lo studio, e li' la manopola e' questa. */
+  ['sovrapp',    'Sovrapposizione asola (mm)', 0, 10, 0.2],
 ];
 
 function ritocchi(o) {
@@ -10012,7 +10074,6 @@ function vistaCatalogo() {
       numero('bordoMax', 'Bordo massimo automatico (mm)', 0.4, 12, 0.1) +
       numero('minSpessore', 'Spessore minimo stampabile (mm)', 0.4, 5, 0.1) +
       numero('maxCaratteri', 'Lettere al massimo', 3, 40, 1) +
-      numero('slotBobine', 'Bobine caricabili insieme', 1, 16, 1) +
       numero('foro', 'Foro portachiavi (mm)', 1, 10, 0.1) +
       numero('anello', 'Anello attorno al foro (mm)', 0.5, 8, 0.1) +
     '</div></div>' +
@@ -10022,7 +10083,6 @@ function vistaCatalogo() {
       '<label class="campo">Mostra i prezzi<select data-gen="mostraPrezzi">' +
         '<option value="1"' + (cat.mostraPrezzi ? ' selected' : '') + '>sì</option>' +
         '<option value="0"' + (cat.mostraPrezzi ? '' : ' selected') + '>no</option></select></label>' +
-      '<label class="campo">Codice operatore<input type="text" data-gen="pin" value="' + esc(cat.pin) + '"></label>' +
       '<label class="campo">Ricomincia da solo dopo (secondi)<input type="number" data-gen="attesaReset" min="15" max="600" step="5" value="' + cat.attesaReset + '"></label>' +
     '</div></div>' +
 
@@ -10074,7 +10134,6 @@ function salvaCatalogo() {
   if (!nuovo.misure.length) return avvisa('Serve almeno una misura.');
   if (!nuovo.font.length)   return avvisa('Serve almeno un carattere.');
   if (!nuovo.asole.length)  return avvisa('Serve almeno una posizione per l’anello.');
-  if (!String(nuovo.pin).length) return avvisa('Il codice operatore non può essere vuoto.');
 
   D.scriviCatalogo(nuovo);
   cat = D.leggiCatalogo();
@@ -10096,7 +10155,7 @@ let piano = null;
 
 function calcolaPiano() {
   const pronti = D.leggiOrdini().filter(o => o.stato === 'pronto');
-  piano = P.calcola(pronti, cat.regole.slotBobine);
+  piano = P.calcola(pronti, SLOT_BOBINE);
   piano.numeri = pronti.map(o => o.numero);
 }
 
@@ -10129,8 +10188,7 @@ function vistaStampa() {
         ' usano più colori di quante bobine hai: vanno stampati a parte.</div>' : '') +
     '<div class="fila filtri"><button type="button" class="bottone piccolo" ' +
     'data-ricalcola="1">Ricalcola il piano</button>' +
-    '<span class="sotto">' + cat.regole.slotBobine + ' bobine caricabili ' +
-    '(si cambia dal catalogo)</span></div>';
+    '<span class="sotto">' + SLOT_BOBINE + ' bobine caricabili insieme</span></div>';
 
   if (!piano.caricamenti.length)
     return testa + '<p class="guida">Nessun ordine pronto da stampare.</p>';
@@ -10199,9 +10257,11 @@ function segnaStampati(numeri) {
 
 const INTESTAZIONI = ['Numero', 'Nome', 'Carattere', 'Colore targhetta',
   'Colore scritta', 'Misura', 'mm', 'Anello', 'Prezzo', 'Ordinato il',
-  'Larghezza mm', 'Altezza mm', 'Correzioni applicate'];
+  'Larghezza mm', 'Altezza mm', 'Correzioni applicate', 'Caricamento', 'Gruppo'];
 
-function rigaElenco(o, g) {
+/* posto: dove il piano ha messo l'ordine, o niente quando il riepilogo si fa
+   senza piano (l'elenco per i conti li prende tutti, anche i non pronti). */
+function rigaElenco(o, g, posto) {
   const e = o.etichette || {};
   return Z.rigaCSV([
     o.numero, o.cliente, e.font, e.coloreBase, e.coloreTesto,
@@ -10211,15 +10271,58 @@ function rigaElenco(o, g) {
     g ? String(Math.round(g.W * 10) / 10).replace('.', ',') : '',
     g ? String(Math.round(g.H * 10) / 10).replace('.', ',') : '',
     (o.correzioni || []).join(' — '),
+    posto ? posto.indice : '',
+    posto ? posto.etichetta : '',
   ]);
 }
 
-/* Un archivio con dentro una cartella per ordine, e in ognuna i due file da
-   caricare nello slicer. I file si ricostruiscono qui a precisione piena
-   partendo dalla configurazione salvata: quello che si scarica e' sempre il
-   pezzo definitivo, anche se l'ordine e' stato ritoccato a mano.
+/* I nomi dei colori accorciati per le cartelle: la prima parola basta a
+   riconoscerli, e «Rosso fuoco» diventa «Rosso». Se pero' due colori dello
+   stesso caricamento finirebbero uguali, per quelli si tiene il nome intero:
+   meglio una cartella lunga che due indistinguibili davanti alla stampante. */
+function sigleColori(hexs) {
+  const brevi = hexs.map(h => nomeSicuro(nomeColore(h).split(/\s+/)[0], 10));
+  return brevi.map((b, i) =>
+    brevi.some((x, j) => j !== i && x === b) ? nomeSicuro(nomeColore(hexs[i]), 20) : b);
+}
+
+/* Da ogni numero d'ordine alla cartella in cui finira'. Il piano si rifa' qui
+   sugli stessi ordini che si stanno esportando: usando quello gia' in memoria,
+   calcolato magari mezz'ora fa, le cartelle direbbero una cosa e la scheda
+   Stampa un'altra. Rimettendolo in `piano` le due restano d'accordo. */
+function dispostiPerStampa(pronti) {
+  piano = P.calcola(pronti, SLOT_BOBINE);
+  piano.numeri = pronti.map(o => o.numero);
+  const posti = new Map();
+  piano.caricamenti.forEach((c, i) => {
+    const lotto = (i + 1) + '_' + sigleColori(c.bobine).join('+');
+    const usati = new Set();
+    for (const g of c.gruppi) {
+      const [t, b] = sigleColori([g.testo, g.base]);
+      // due colori diversi possono accorciarsi uguale: le cartelle no
+      let gruppo = t + '_su_' + b;
+      for (let k = 2; usati.has(gruppo); k++) gruppo = t + '_su_' + b + '_' + k;
+      usati.add(gruppo);
+      for (const n of g.ordini)
+        posti.set(n, { indice: i + 1, lotto, gruppo,
+                       etichetta: nomeColore(g.testo) + ' su ' + nomeColore(g.base) });
+    }
+  });
+  return posti;
+}
+
+/* Un archivio disposto come si stampa: una cartella per caricamento di bobine,
+   dentro una per ogni accostamento di colori, e in fondo una per ordine con i
+   due file da dare allo slicer. Cosi' chi stampa carica le bobine una volta e
+   svuota la cartella, invece di pescare gli ordini uno a uno da un elenco
+   piatto e cambiare bobine di continuo.
+   I file si ricostruiscono qui a precisione piena partendo dalla configurazione
+   salvata: quello che si scarica e' sempre il pezzo definitivo, anche se
+   l'ordine e' stato ritoccato a mano.
    Si procede un ordine per volta, lasciando respirare la pagina fra uno e
    l'altro, cosi' con cinquanta ordini il tablet non sembra bloccato. */
+const FUORI_PIANO = 'fuori_piano';
+
 async function esportaPerStampa() {
   const pronti = D.leggiOrdini().filter(o => o.stato === 'pronto');
   const dove = $('#avanzamento');
@@ -10228,26 +10331,30 @@ async function esportaPerStampa() {
                   'controllati nella scheda Ordini.');
   }
 
+  const posti = dispostiPerStampa(pronti);
   const quando = new Date();
   const radice = 'portachiavi_' + quando.toISOString().slice(0, 10);
-  const voci = [], righe = [Z.rigaCSV(INTESTAZIONI)], saltati = [];
+  const voci = [], righe = [Z.rigaCSV(INTESTAZIONI)], saltati = [], fuori = [];
 
   for (let i = 0; i < pronti.length; i++) {
     const o = pronti[i];
     if (dove) dove.textContent = 'Preparo ' + (i + 1) + ' di ' + pronti.length + '…';
     await new Promise(r => setTimeout(r, 0));
 
+    const posto = posti.get(o.numero);
     const g = costruisci(o.cfg);
-    if (g.errore) { saltati.push(o.numero); righe.push(rigaElenco(o, null)); continue; }
+    if (g.errore) { saltati.push(o.numero); righe.push(rigaElenco(o, null, posto)); continue; }
+    if (!posto) fuori.push(o.numero);
 
     const base = cartellaOrdine(o);
-    const dentro = radice + '/' + base + '/';
+    const dentro = radice + '/' +
+      (posto ? posto.lotto + '/' + posto.gruppo : FUORI_PIANO) + '/' + base + '/';
     // 1 e 2 nel nome cosi' nello slicer si caricano nell'ordine giusto
     voci.push({ nome: dentro + base + '_1_base.svg',
                 testo: fileSVG(g, 'base', o.cfg.crocini) });
     voci.push({ nome: dentro + base + '_2_scritta.svg',
                 testo: fileSVG(g, 0, o.cfg.crocini) });
-    righe.push(rigaElenco(o, g));
+    righe.push(rigaElenco(o, g, posto));
   }
 
   // il segno iniziale serve al foglio di calcolo per capire che e' UTF-8
@@ -10259,11 +10366,18 @@ async function esportaPerStampa() {
   await consegna(Z.crea(voci, quando), radice + '.zip');
   if (dove) dove.textContent = '';
 
-  avvisa('Esportati ' + (pronti.length - saltati.length) + ' ordini' +
-    (saltati.length ? ', saltati i numeri ' + saltati.join(', ') +
-                      ' perché il disegno dà errore.' : '.') +
-    '\nDentro l’archivio c’è una cartella per ordine, più elenco.csv con il ' +
-    'riepilogo.');
+  const cambi = Math.max(0, piano.caricamenti.length - 1);
+  avvisa('Esportati ' + (pronti.length - saltati.length) + ' ordini in ' +
+    piano.caricamenti.length + (piano.caricamenti.length === 1 ? ' caricamento' : ' caricamenti') +
+    ' di bobine' + (cambi ? ', ' + (cambi === 1 ? 'un cambio' : cambi + ' cambi') +
+                            ' bobine in tutto.' : '.') +
+    (saltati.length ? '\nSaltati i numeri ' + saltati.join(', ') +
+                      ' perché il disegno dà errore.' : '') +
+    (fuori.length ? '\nI numeri ' + fuori.join(', ') + ' non stanno in nessun ' +
+                    'caricamento: sono nella cartella «' + FUORI_PIANO + '».' : '') +
+    '\nOgni cartella porta nel nome le bobine da caricare; dentro c’è una ' +
+    'cartella per accostamento di colori. In fondo elenco.csv, con anche il ' +
+    'caricamento di ognuno.');
 }
 
 /* Il riepilogo di TUTTI gli ordini, da solo. Quello dentro lo zip riguarda i
@@ -10287,11 +10401,13 @@ function vistaDispositivo() {
   const daControllare = o.filter(x => x.stato === 'da controllare').length;
 
   return '<div class="sezione"><h3>Esportare per la stampa</h3>' +
-    '<p>Un archivio con una cartella per ordine e dentro i due file da ' +
-    'caricare nello slicer: <b>la base</b> e <b>la scritta</b>. C’è anche ' +
-    '<b>elenco.csv</b> con il riepilogo di tutto. Vengono presi solo gli ' +
-    'ordini <b>pronti</b>, cioè quelli che hai spuntato dopo averli ' +
-    'controllati.</p>' +
+    '<p>Un archivio disposto <b>come si stampa</b>: una cartella per ogni ' +
+    'caricamento di bobine, col nome dei colori da montare, e dentro una ' +
+    'cartella per ogni accostamento. In fondo, per ogni ordine, i due file da ' +
+    'dare allo slicer: <b>la base</b> e <b>la scritta</b>. C’è anche ' +
+    '<b>elenco.csv</b> con il riepilogo e il caricamento di ognuno. Vengono ' +
+    'presi solo gli ordini <b>pronti</b>, cioè quelli che hai spuntato dopo ' +
+    'averli controllati.</p>' +
     (daControllare ? '<div class="avviso">Ci sono ancora <b>' + daControllare +
       '</b> ordini da controllare: non entreranno in questa esportazione.</div>' : '') +
     '<div class="fila">' +
@@ -10418,21 +10534,6 @@ function collega() {
 
   $('#opCorpo').addEventListener('click', (ev) => {
     const t = ev.target;
-
-    // tastierino del codice
-    const cifra = t.closest('[data-cifra]');
-    if (cifra) {
-      pinDigitato += cifra.dataset.cifra;
-      $('#pinPunti').textContent = '•'.repeat(pinDigitato.length);
-      return;
-    }
-    const az = t.closest('[data-azione]');
-    if (az) {
-      if (az.dataset.azione === 'cancella') pinDigitato = pinDigitato.slice(0, -1);
-      else return verificaPin();
-      $('#pinPunti').textContent = '•'.repeat(pinDigitato.length);
-      return;
-    }
 
     const sc = t.closest('[data-scarica]');
     if (sc) return scaricaOrdine(Number(sc.dataset.n), sc.dataset.scarica);
