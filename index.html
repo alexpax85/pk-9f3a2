@@ -8110,6 +8110,26 @@ function capsula(x1, y1, x2, y2, r) {
   return normalizza(p);
 }
 
+/* Il punto del contorno piu' vicino a (px,py). Si guardano i segmenti e non i
+   soli vertici: su una figura con lati dritti i vertici stanno tutti agli
+   angoli, e il lato in mezzo non ne ha nemmeno uno. */
+function puntoPiuVicino(paths, px, py, dentro) {
+  let mig = null, md = Infinity;
+  for (const p of paths) for (let i = 0; i < p.length; i++) {
+    const a = p[i], c = p[(i + 1) % p.length];
+    const ax = a.X / S, ay = a.Y / S;
+    const dx = c.X / S - ax, dy = c.Y / S - ay;
+    const l2 = dx * dx + dy * dy;
+    let t = l2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const qx = ax + t * dx, qy = ay + t * dy;
+    if (dentro && !dentro(qx, qy)) continue;
+    const d = (qx - px) ** 2 + (qy - py) ** 2;
+    if (d < md) { md = d; mig = [qx, qy, Math.sqrt(d)]; }
+  }
+  return mig;
+}
+
 /* Toglie i frammenti troppo piccoli per essere stampati: schegge di materiale e
    buchini residui che la dilatazione lascia negli angoli stretti delle lettere. */
 const AREA_MIN_ESTERNO = 0.3, AREA_MIN_BUCO = 0.8;   // mm quadri
@@ -8397,10 +8417,35 @@ function costruisciDentro(cfg, opz) {
     const r = cfg.foro / 2, R = r + cfg.anello;
     const b = riquadro(pBase);
 
-    /* L'asola si appoggia al punto piu' estremo del contorno vero nella direzione
-       scelta (non allo spigolo del rettangolo d'ingombro, che con i corsivi cade
-       spesso nel vuoto): cosi' tocca sempre il materiale e il collo resta corto.
-       "Sovrapposizione" e' di quanto il disco affonda oltre quel punto. */
+    /* Dove va il disco, in due decisioni separate.
+
+       Lungo l'asse scelto si cerca il punto piu' estremo del contorno vero e non
+       lo spigolo del rettangolo d'ingombro: cosi' il disco sporge sempre della
+       stessa quantita' oltre il pezzo, e "sovrapposizione" e' di quanto affonda
+       oltre quel punto.
+
+       Sull'asse perpendicolare si sta al centro della base. Prima li' finiva la
+       coordinata del punto vincente, e un punto estremo non e' un centro: su un
+       rettangolo il lato e' piatto, mille vertici pareggiano e vinceva il primo
+       emesso da ClipperOffset, cioe' uno spigolo (con «Paoletto» a 50 mm «in
+       alto al centro» metteva il foro a X 4 invece che a 26,5); con «segue il
+       contorno» finiva sopra il tratto piu' alto, che cambia col carattere — su
+       «Paoletto Minasi» Lobster lo portava 18 mm fuori centro, Pacifico 1,2.
+       Veniva giusto solo su cerchio e ovale, dove il punto estremo di una figura
+       simmetrica sta gia' sull'asse.
+
+       Si e' provato anche a cercare l'estremo nella sola striscia larga quanto
+       il disco, per tenerlo appoggiato al materiale che gli sta sotto: sbagliato.
+       Su «Viola» in mezzo c'e' la «o», piu' bassa delle aste ai lati, e il disco
+       ci si sedeva sopra sparendo dentro la parola — il foro veniva punzonato
+       fra la «i» e la «o» invece che sopra il pezzo. L'asola deve sporgere: al
+       vuoto sotto ci pensa il collo qui sotto.
+
+       «In alto a sinistra» e «in alto a destra» vogliono essere decentrate:
+       restano com'erano, cioe' il punto piu' alto della loro meta' di pezzo. */
+    const centroX = (b.x0 + b.x1) / 2, centroY = (b.y0 + b.y1) / 2;
+    const angolo = cfg.posAsola === 'alto-sx' || cfg.posAsola === 'alto-dx';
+
     const finestra = cfg.posAsola === 'alto-sx' ? (x) => x <= b.x0 + b.w * 0.45
                    : cfg.posAsola === 'alto-dx' ? (x) => x >= b.x1 - b.w * 0.45
                    : () => true;
@@ -8414,21 +8459,40 @@ function costruisciDentro(cfg, opz) {
       const n = punteggio(x, y);
       if (n < migliore) { migliore = n; vx = x; vy = y; }
     }
+
     let cx, cy;
-    if (cfg.posAsola === 'sinistra')    { cx = vx - R + cfg.sovrapp; cy = vy; }
-    else if (cfg.posAsola === 'destra') { cx = vx + R - cfg.sovrapp; cy = vy; }
-    else                                { cx = vx; cy = vy - R + cfg.sovrapp; }
+    if (cfg.posAsola === 'sinistra')    { cx = vx - R + cfg.sovrapp; cy = centroY; }
+    else if (cfg.posAsola === 'destra') { cx = vx + R - cfg.sovrapp; cy = centroY; }
+    else if (angolo)                    { cx = vx;      cy = vy - R + cfg.sovrapp; }
+    else                                { cx = centroX; cy = vy - R + cfg.sovrapp; }
     cx += cfg.asolaX;
     cy += cfg.asolaY;
 
-    // collo di raccordo verso il punto di base più vicino: l'asola non si stacca mai
-    let mig = null, md = Infinity;
-    for (const p of pBase) for (const q of p) {
-      const d = (q.X / S - cx) ** 2 + (q.Y / S - cy) ** 2;
-      if (d < md) { md = d; mig = [q.X / S, q.Y / S]; }
-    }
+    /* Il collo di raccordo, perche' l'asola non si stacchi mai. Si disegna
+       sempre: con "sovrapposizione" a zero il disco e' solo tangente al
+       materiale, e un punto di contatto non e' una saldatura — l'unione lo
+       lascerebbe staccato. Quando invece il disco affonda davvero, il collo
+       finisce dentro il disco e non si vede.
+
+       Si attacca al materiale che sta sotto il disco, cioe' dentro la striscia
+       larga quanto il disco, e non al punto piu' vicino in linea d'aria: quello
+       spesso sta di traverso, e su «Viola» il collo partiva in diagonale verso
+       la «i» invece di scendere dritto. Se sotto non c'e' proprio niente si
+       ripiega sul piu' vicino, che e' sempre meglio di nessun collo.
+
+       Il punto si cerca sui segmenti e non sui soli vertici: su un rettangolo i
+       vertici stanno tutti sui quattro angoli arrotondati e il lato dritto non
+       ne ha nemmeno uno, quindi il collo partiva verso l'angolo e sbordava dal
+       pezzo — con «Paoletto» a 50 mm allargava la targhetta di 0,6 mm e
+       spostava il centro di 0,3. Non si era mai visto perche' prima il disco
+       finiva comunque su un angolo, dove un vertice c'era. */
+    const striscia = angolo ? null
+      : (cfg.posAsola === 'sinistra' || cfg.posAsola === 'destra')
+        ? (qx, qy) => Math.abs(qy - cy) <= R
+        : (qx, qy) => Math.abs(qx - cx) <= R;
+    const vicino = puntoPiuVicino(pBase, cx, cy, striscia) || puntoPiuVicino(pBase, cx, cy, null);
     const pezzi = pBase.concat([cerchio(cx, cy, R)]);
-    if (mig) pezzi.push(capsula(cx, cy, mig[0], mig[1], Math.max(cfg.anello * 0.8, 1.2)));
+    if (vicino) pezzi.push(capsula(cx, cy, vicino[0], vicino[1], Math.max(cfg.anello * 0.8, 1.2)));
     albBase = sottrai(percorsi(unisci(pezzi)), [cerchio(cx, cy, r)]);
     pBase = percorsi(albBase);
     // il foro non deve essere invaso dal disegno
