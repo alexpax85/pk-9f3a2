@@ -83,6 +83,10 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   overflow-x: auto; scrollbar-width: none;
 }
 #passi::-webkit-scrollbar { display: none; }
+/* L'attributo hidden vale display:none, ma con specificita' bassissima: le
+   due regole qui sopra lo battono, e sulla prima schermata i passi e i
+   comandi restavano a vista pur essendo «nascosti». */
+#passi[hidden], #fondo[hidden] { display: none; }
 .passo {
   flex: 1 1 0; min-width: 76px; text-align: center;
   font-size: 12px; font-weight: 600; color: var(--tenue);
@@ -288,10 +292,18 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 
 /* Le due porte della prima schermata: grandi, con un segno che si capisce
    da lontano. Su un tablet il cliente le tocca da in piedi. */
+/* Le porte sono l'unica scelta impilata invece che in riga: hanno un disegno
+   sopra e due righe di testo sotto, e in riga il titolo finirebbe addosso
+   alla descrizione. */
 .scelte.porte { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
-.porta { padding: 22px 18px; }
-.porta .disegno { display: block; margin-bottom: 10px; color: var(--tinta); }
-.porta .disegno svg { width: 96px; height: 58px; display: block; margin: 0 auto; }
+.porta {
+  flex-direction: column; align-items: center; text-align: center;
+  gap: 6px; padding: 24px 18px;
+}
+.porta .disegno { color: var(--tinta); }
+.porta .disegno svg { width: 96px; height: 58px; display: block; }
+.porta .titolo { font-size: 19px; }
+.porta .cresci { flex: 0 0 auto; }
 
 /* Un capo intero chiede piu' aria di una targhetta: senza, la maglietta
    viene alta un pollice e la scritta dentro non si legge. */
@@ -299,7 +311,6 @@ body[data-tipo="maglietta"] #scena { flex: 0 0 46vh; }
 #capo { width: 100%; height: 100%; display: block; }
 #capo .grafica { cursor: grab; }
 
-.scelte.lati { grid-template-columns: repeat(2, 1fr); margin-bottom: 14px; }
 .scelta.piccola { padding: 12px 10px; min-height: 0; }
 
 #pannello textarea {
@@ -323,6 +334,24 @@ body[data-tipo="maglietta"] #scena { flex: 0 0 46vh; }
 .latoOrdine { border-top: 1px solid var(--linea); padding-top: 12px; margin-top: 12px; }
 .latoOrdine:first-child { border-top: none; margin-top: 0; padding-top: 0; }
 .latoOrdine .miniscena svg { max-height: 190px; }
+
+/* Davanti o dietro: sta sull'anteprima perche' e' quello che si sta
+   guardando, e da li' si commuta anche tutto il resto. */
+body[data-tipo="maglietta"] #scena { position: relative; }
+#lati {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 4px; padding: 4px; z-index: 2;
+  background: rgba(255,255,255,.82); border-radius: 999px;
+  box-shadow: 0 1px 6px rgba(0,0,0,.12);
+}
+#lati .unLato {
+  border: 0; border-radius: 999px; padding: 7px 16px; cursor: pointer;
+  font: inherit; font-size: 14px; font-weight: 600;
+  background: transparent; color: var(--tenue);
+}
+#lati .unLato[aria-pressed="true"] { background: var(--tinta); color: #fff; }
+#lati.sola .unLato { cursor: default; background: transparent; color: var(--inchiostro); }
+#lati .vuoto { opacity: .45; }
 </style>
 </head>
 <body>
@@ -9958,6 +9987,7 @@ const SFONDI = {
   'bordo':      { titolo: 'Bordo attorno',   formaBase: 'contorno',   colori: 2 },
   'rettangolo': { titolo: 'Riquadro pieno',  formaBase: 'rettangolo', colori: 2 },
   'ellisse':    { titolo: 'Ovale pieno',     formaBase: 'ellisse',    colori: 2 },
+  'cerchio':    { titolo: 'Tondo pieno',     formaBase: 'cerchio',    colori: 2 },
 };
 
 const LATI = ['fronte', 'retro'];
@@ -9986,10 +10016,9 @@ function sceltaLatoIniziale(cat) {
     coloreSfondo: (M.coloriStampa[0] || {}).hex,
     coloreTesto: (M.coloriStampa[1] || M.coloriStampa[0] || {}).hex,
     larghezzaVoluta: Math.round(R.maxLarghezza * 0.7),
-    /* Dove si posa il piatto della pressa, non dove sta la scritta: la
-       scritta e' solidale col piatto, e cio' che il cliente decide e' dove
-       appoggiarlo sul capo. */
-    posizione: window.Capo.posizioneIniziale('fronte', R.maxLarghezza, R.maxAltezza),
+    /* Dove va la scritta sul capo. Si parte in cima e centrata; il morsetto
+       la rimette dentro appena si sa quanto viene grande. */
+    posizione: { dalCollo: 0, scostamento: 0 },
   };
 }
 
@@ -10032,17 +10061,22 @@ const quanteRighe = (testo) =>
 
 /* Il disegno che sta dentro il letto della pressa.
 
-   Il motore adatta su un asse solo, larghezza OPPURE altezza: il riquadro e'
-   una politica della macchina, non geometria, e sta qui come ci sta la
-   ricerca del bordo minimo nel chiosco. Bastano due costruzioni: si prova
-   sulla larghezza, che e' il vincolo che il cliente sente, e se ne esce
-   troppo alto si rifa' vincolando l'altezza.
+   Il motore adatta su un asse solo, larghezza OPPURE altezza, e per giunta
+   quello che scala e' il TESTO: lo sfondo gli si costruisce attorno e puo'
+   venire molto piu' grande. Un tondo attorno a una scritta larga e bassa ha
+   il diametro della diagonale, e una scritta di dodici lettere ci finisce
+   dentro un cerchio da un metro e settanta. Quindi non si puo' chiedere al
+   motore una misura e fidarsi: si costruisce, si misura l'ingombro vero, e
+   se sfora si rimpicciolisce tutto di quel tanto. Bastano pochi giri perche'
+   il rapporto e' quasi proporzionale — quasi, perche' il bordo resta della
+   sua misura mentre il testo si rimpicciolisce.
 
-   L'interlinea del motore e' in millimetri, ma qui la scritta passa da 80 a
-   300 mm: un valore fisso sarebbe stretto in un caso e sbracato nell'altro.
-   Si tiene come frazione dell'altezza di una riga, e siccome quell'altezza
-   dipende dalla scala che dipende dall'interlinea, le due si inseguono: si
-   itera, come fa il motore per la spaziatura. */
+   Nello stesso ciclo si sistema l'interlinea. Il motore la vuole in
+   millimetri, ma qui la scritta passa da 80 a 300 mm e un valore fisso
+   sarebbe stretto in un caso e sbracato nell'altro: si tiene come frazione
+   dell'altezza di una riga, e siccome quell'altezza dipende dalla scala che
+   dipende dall'interlinea, le due si inseguono. Si itera, come fa il motore
+   per la spaziatura. */
 function adattaAlRiquadro(L, cat, opz) {
   const R = cat.magliette.regole;
   const maxW = R.maxLarghezza, maxH = R.maxAltezza;
@@ -10050,32 +10084,22 @@ function adattaAlRiquadro(L, cat, opz) {
   if (!righe) return { errore: 'Scrivi qualcosa da stampare.' };
 
   const voluta = Math.min(maxW, Math.max(10, L.larghezzaVoluta || maxW));
-  let interlinea = 0, mod = null, corretto = null;
-  /* Una volta che si e' scoperto di dover vincolare l'altezza non si torna
-     piu' a provare la larghezza: aggiungere interlinea alza il disegno, non
-     lo abbassa, quindi il verdetto non puo' cambiare idea. Senza questo ogni
-     giro faceva due costruzioni invece di una. */
-  let perAltezza = false;
+  let dim = voluta, interlinea = 0, corretto = false, mod = null;
 
   /* La ricerca, tutta a tolleranze larghe: qui si decide soltanto. */
-  for (let giro = 0; giro < 5; giro++) {
-    mod = perAltezza ? { adattaA: 'altezza', dimensione: maxH, interlinea }
-                     : { adattaA: 'larghezza', dimensione: voluta, interlinea };
-    let g = costruisci(componiCfg(L, cat, mod), PROVA);
+  for (let giro = 0; giro < 8; giro++) {
+    mod = { adattaA: 'larghezza', dimensione: dim, interlinea };
+    const g = costruisci(componiCfg(L, cat, mod), PROVA);
     if (g.errore) return g;
 
-    /* Troppo alto: si rifa' vincolando l'altezza. La larghezza allora viene
-       per forza sotto quella voluta, quindi il riquadro e' rispettato da
-       tutte e due le parti. */
-    if (!perAltezza && g.H > maxH) {
-      perAltezza = true;
-      corretto = 'La scritta è stata rimpicciolita per stare nell’area di stampa.';
-      mod = { adattaA: 'altezza', dimensione: maxH, interlinea };
-      g = costruisci(componiCfg(L, cat, mod), PROVA);
-      if (g.errore) return g;
+    const k = fattoreDentro(g, maxW, maxH);
+    if (k < 0.999) {
+      dim = Math.max(5, dim * k);
+      corretto = true;
+      continue;                       // rimisurare prima di toccare altro
     }
 
-    if (righe < 2) break;                       // una riga sola: niente interlinea
+    if (righe < 2) break;             // una riga sola: niente interlinea
     /* L'altezza di una riga, tolti i vuoti gia' messi fra le righe. */
     const altezzaRiga = (g.altezzaTesto - interlinea * (righe - 1)) / righe;
     const nuova = Math.round(altezzaRiga * R.interlineaRel * 100) / 100;
@@ -10085,22 +10109,33 @@ function adattaAlRiquadro(L, cat, opz) {
 
   /* E una sola costruzione buona, con la precisione che tocca al pezzo che
      si stampa davvero. Chi vuole solo un'anteprima passa la sua tolleranza. */
-  const cfg = componiCfg(L, cat, mod);
-  const g = costruisci(cfg, opz);
+  let cfg = componiCfg(L, cat, mod);
+  let g = costruisci(cfg, opz);
   if (g.errore) return g;
+
   /* Le tolleranze larghe possono aver deciso una misura che a precisione
-     piena sborda di un pelo: si accorcia quel pelo invece di ricominciare. */
-  if (g.W > maxW + 0.01 || g.H > maxH + 0.01) {
-    const stretto = componiCfg(L, cat, Object.assign({}, mod, {
-      adattaA: g.W / maxW > g.H / maxH ? 'larghezza' : 'altezza',
-      dimensione: g.W / maxW > g.H / maxH ? maxW : maxH,
-    }));
-    const g2 = costruisci(stretto, opz);
-    if (!g2.errore) return { cfg: stretto, g: g2, colori: coloriDi(L), corretto };
+     piena sborda di un pelo: si accorcia quel pelo. */
+  for (let giro = 0; giro < 3; giro++) {
+    const k = fattoreDentro(g, maxW, maxH);
+    if (k >= 0.999) break;
+    mod = Object.assign({}, mod, { dimensione: Math.max(5, mod.dimensione * k) });
+    cfg = componiCfg(L, cat, mod);
+    const g2 = costruisci(cfg, opz);
+    if (g2.errore) break;
+    g = g2;
+    corretto = true;
   }
 
-  return { cfg, g, colori: coloriDi(L), corretto };
+  return { cfg, g, colori: coloriDi(L),
+           corretto: corretto
+             ? 'La scritta è stata rimpicciolita per stare nell’area di stampa.'
+             : null };
 }
+
+/* Di quanto va moltiplicato per stare dentro. Uno o piu' vuol dire che ci
+   sta gia'. */
+const fattoreDentro = (g, maxW, maxH) =>
+  Math.min(maxW / g.W, maxH / g.H, 1);
 
 /* ----------------------------------------------------------------- prezzo */
 
@@ -10331,6 +10366,13 @@ function aggiorna(opz) {
   for (const lato of T.LATI) {
     if (!scelta.lati.includes(lato) || !haTesto(lato)) { calcolo[lato] = null; continue; }
     calcolo[lato] = T.adattaAlRiquadro(scelta[lato], cat, opz || BOZZA);
+    /* Cambiando la scritta cambia il suo ingombro, e con quello lo spazio in
+       cui puo' stare: una posizione buona per una scritta piccola puo' non
+       esserlo piu' per una grande. Si rimette dentro subito, senno' il
+       morsetto se ne accorgerebbe solo al primo trascinamento. */
+    const G = misuraGrafica(lato);
+    scelta[lato].posizione = C.stringi(lato, scelta[lato].posizione || {},
+                                       G.largo, G.alto);
   }
 }
 
@@ -10344,6 +10386,18 @@ function fraPoco(quando) {
 function ridisegna() {
   if (ganci.disegna) ganci.disegna();
   if (ganci.aggiornaFondo) ganci.aggiornaFondo();
+  rinfrescaMisure();
+}
+
+/* Le due righe che cambiano con la geometria si riscrivono da sole. Non si
+   ridisegna il pannello: mentre si trascina il cursore della misura
+   sparirebbe da sotto il dito. */
+function rinfrescaMisure() {
+  const r = calcolo[latoAperto];
+  const i = $('#ingombro');
+  if (i) i.textContent = r && !r.errore && r.g ? quantoVienGrande(r.g) : '';
+  const d = $('#dovesta');
+  if (d && scelta) d.textContent = dovesta(scelta[latoAperto], latoAperto);
 }
 
 /* ------------------------------------------------------------ i pannelli */
@@ -10351,16 +10405,19 @@ function ridisegna() {
 const testa = (n) => '<h2>' + esc(PASSI[n].titolo) + '</h2>' +
   '<p class="guida">' + esc(PASSI[n].guida) + '</p>';
 
-/* Il selettore del lato, in cima ai passi che riguardano un lato solo. Con
-   un lato solo scelto non compare: non c'e' niente da scegliere. */
+/* Il lato si sceglie sull'anteprima, non dentro il pannello: quello che si
+   sta guardando e' il capo, e li' deve stare scritto se e' il davanti o il
+   dietro. Con un lato solo resta l'etichetta, che serve lo stesso: dice che
+   cosa si sta guardando. */
 function fileLato() {
-  if (scelta.lati.length < 2) return '';
-  return '<div class="scelte lati">' + scelta.lati.map(l =>
-    '<button type="button" class="scelta piccola" data-lato="' + l + '" ' +
-    'aria-pressed="' + (l === latoAperto) + '">' +
-    '<span class="titolo">' + esc(T.NOMI_LATO[l]) + '</span>' +
-    '<span class="sotto">' + (haTesto(l) ? esc(riassuntoLato(l)) : 'ancora vuoto') +
-    '</span></button>').join('') + '</div>';
+  const uno = scelta.lati.length < 2;
+  return '<div id="lati"' + (uno ? ' class="sola"' : '') + '>' +
+    scelta.lati.map(l =>
+      '<button type="button" class="unLato" data-lato="' + l + '" ' +
+      'aria-pressed="' + (l === latoAperto) + '"' + (uno ? ' disabled' : '') + '>' +
+      esc(T.NOMI_LATO[l]) +
+      (haTesto(l) ? '' : ' <span class="vuoto">·</span>') +
+      '</button>').join('') + '</div>';
 }
 
 /* Le righe della scritta su una sola riga, per l'elenco. Il `sc` si passa
@@ -10409,7 +10466,7 @@ function pannelloTesto() {
       '<span class="sotto">' + esc(FONT_DATA[id].nome) + '</span></button>').join('') +
     '</div></div>';
 
-  return testa(1) + fileLato() + campo + font;
+  return testa(1) + campo + font;
 }
 
 const primaRiga = (t) =>
@@ -10447,9 +10504,9 @@ function pannelloColori() {
         (via ? '<span class="motivo">già usato per l’altro</span>' : '') + '</button>';
     }).join('') + '</div></div>';
 
-  return testa(2) + fileLato() + forme + spessore +
-    tavolozza('coloreTesto', 'Il colore della scritta', unColore ? null : L.coloreSfondo) +
-    (unColore ? '' : tavolozza('coloreSfondo', 'Il colore dietro', L.coloreTesto));
+  return testa(2) + forme + spessore +
+    tavolozza('coloreTesto', 'Colore della scritta', unColore ? null : L.coloreSfondo) +
+    (unColore ? '' : tavolozza('coloreSfondo', 'Colore sfondo', L.coloreTesto));
 }
 
 function pannelloPosizione() {
@@ -10465,21 +10522,22 @@ function pannelloPosizione() {
     '<p class="sotto" id="ingombro">' + (g ? esc(quantoVienGrande(g)) : '') + '</p></div>';
 
   const posti = '<div class="sezione"><h3>Dove</h3>' +
-    '<p>Trascina il riquadro sulla maglietta, dove vuoi che finisca la ' +
-    'stampa. È il piatto della pressa: la scritta ci sta dentro e si sposta ' +
-    'con lui.</p>' +
+    '<p>Trascina la scritta dove vuoi che finisca sulla maglietta. Il ' +
+    'riquadro attorno è il piatto della pressa: serve a farti vedere quanto ' +
+    'spazio prende la macchina, e può sbordare dal capo senza problemi.</p>' +
     '<p class="sotto">Stampa <span id="dovesta">' + esc(dovesta(L, latoAperto)) +
     '</span></p></div>';
 
-  return testa(3) + fileLato() + misura + posti;
+  return testa(3) + misura + posti;
 }
 
 const quantoVienGrande = (g) =>
   'Viene ' + numero(g.W) + ' × ' + numero(g.H) + ' mm';
 const numero = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
-/* I due numeri che finiscono nell'ordine. Si contano dal punto piu' alto in
-   cui il piatto puo' stare, che sul davanti e' poco sotto lo scollo: e' un
-   riferimento che si ritrova col metro sul capo steso. */
+/* I due numeri che finiscono nell'ordine, e riguardano la SCRITTA. Si
+   contano dal punto piu' alto in cui puo' stare, che sul davanti e' poco
+   sotto lo scollo: e' un riferimento che si ritrova col metro sul capo
+   steso. Quello che fa fede resta comunque l'anteprima. */
 const dovesta = (L, lato) =>
   numero((L.posizione || {}).dalCollo || 0) + ' mm sotto il collo' +
   ((L.posizione || {}).scostamento
@@ -10511,13 +10569,27 @@ function svgCapo(interattivo) {
 const piatto = (c) => ({ largo: c.magliette.regole.maxLarghezza,
                          alto: c.magliette.regole.maxAltezza });
 
+/* L'ingombro di quello che si stampa davvero. Finche' non c'e' niente
+   scritto vale il piatto, cosi' il riquadro vuoto resta dov'e' invece di
+   saltare quando arriva la prima lettera. */
+function misuraGrafica(lato) {
+  const r = calcolo[lato];
+  return r && !r.errore && r.g ? { largo: r.g.W, alto: r.g.H } : piatto(cat);
+}
+
 /* Il capo con sopra la grafica al suo posto. Prende tutto per argomento
    perche' serve in due situazioni che non hanno niente in comune: il cliente
    che la sta muovendo, e l'operatore che riapre un ordine di ieri. */
 function disegnaCapo(scelta, lato, g, interattivo, c) {
   const L = scelta[lato] || {};
   const P = piatto(c);
-  const a = C.angolo(lato, L.posizione || { dalCollo: 0, scostamento: 0 }, P.largo, P.alto);
+  /* Quello che si posiziona e' la SCRITTA: e' lei che deve poter arrivare
+     dove si vuole, anche vicino a una cucitura. Il piatto le sta attorno,
+     centrato, e serve a far vedere quanto spazio prende la macchina: puo'
+     sbordare dal capo senza che sia un problema, perche' il capo lo si
+     infila dentro. */
+  const G = g ? { largo: g.W, alto: g.H } : { largo: P.largo, alto: P.alto };
+  const a = C.angolo(lato, L.posizione || { dalCollo: 0, scostamento: 0 }, G.largo, G.alto);
 
   /* Il contorno va scurito parecchio, senno' una maglietta bianca sul fondo
      chiaro del chiosco non si vede affatto: e' proprio la combinazione da cui
@@ -10536,28 +10608,29 @@ function disegnaCapo(scelta, lato, g, interattivo, c) {
   dentro += '<g class="grafica" transform="translate(' + numeroSecco(a.x) + ' ' +
     numeroSecco(a.y) + ')"' + (interattivo ? ' style="cursor:grab"' : '') + '>';
 
-  /* Il contorno del piatto si vede sempre, anche prima che ci sia scritto
-     qualcosa: e' la cosa che si sposta, e vederla vuota aiuta a capire che
-     la scritta ci finira' dentro. */
-  dentro += '<rect x="0" y="0" width="' + P.largo + '" height="' + P.alto +
-    '" fill="#ffffff" fill-opacity=".10" stroke="' + scurisci(scelta.coloreMaglia, 0.42) +
+  /* Il piatto, centrato sulla scritta. Si vede sempre, anche prima che ci
+     sia scritto qualcosa: e' quanto spazio prende la macchina, e vederlo
+     aiuta a capire dove si potra' arrivare. */
+  const px = -(P.largo - G.largo) / 2, py = -(P.alto - G.alto) / 2;
+  dentro += '<rect x="' + numeroSecco(px) + '" y="' + numeroSecco(py) + '" width="' + P.largo +
+    '" height="' + P.alto + '" fill="#ffffff" fill-opacity=".10" stroke="' +
+    scurisci(scelta.coloreMaglia, 0.42) +
     '" stroke-opacity=".7" stroke-width="2.5" stroke-dasharray="14 9"/>';
 
   if (g) {
-    const dx = (P.largo - g.W) / 2, dy = (P.alto - g.H) / 2;
-    dentro += '<g transform="translate(' + numeroSecco(dx) + ' ' + numeroSecco(dy) + ')">';
     if (g.dBase)
       dentro += '<path d="' + g.dBase + '" fill="' + esc(L.coloreSfondo) + '" fill-rule="evenodd"/>';
     g.parti.forEach(pz => {
       dentro += '<path d="' + pz.d + '" fill="' + esc(L.coloreTesto) + '" fill-rule="evenodd"/>';
     });
-    dentro += '</g>';
   }
 
-  /* Un rettangolo invisibile sopra tutto: prendere una lettera sottile col
-     dito e' impossibile, prendere il piatto no. */
+  /* Un rettangolo invisibile sopra la scritta: prenderla per una lettera
+     sottile col dito e' impossibile, per il suo ingombro no. Si prende la
+     scritta e non il piatto, senno' una scritta piccola in mezzo a un piatto
+     grande si afferrerebbe da mezzo metro di distanza. */
   if (interattivo)
-    dentro += '<rect x="0" y="0" width="' + P.largo + '" height="' + P.alto +
+    dentro += '<rect x="0" y="0" width="' + G.largo + '" height="' + G.alto +
       '" fill="transparent"/>';
   dentro += '</g>';
 
@@ -10580,8 +10653,10 @@ function scurisci(hex, k) {
 function scena() {
   if (!scelta) return '';
   const r = calcolo[latoAperto];
-  if (r && r.errore) return '<div id="vuoto">' + esc(r.errore) + '</div>';
-  return svgCapo(PASSI[passoCorrente].id === 'posizione');
+  const dentro = r && r.errore
+    ? '<div id="vuoto">' + esc(r.errore) + '</div>'
+    : svgCapo(PASSI[passoCorrente].id === 'posizione');
+  return fileLato() + dentro;
 }
 
 /* Il passo lo dice chiosco.js quando disegna: qui serve solo per sapere se
@@ -10605,7 +10680,6 @@ function tocco(b) {
       scelta.lati = T.LATI.filter(x => x === l || scelta.lati.includes(x));
     }
   }
-  else if (b.dataset.lato) { latoAperto = b.dataset.lato; geometria = false; }
   else if (b.dataset.maglia) { scelta.coloreMaglia = b.dataset.maglia; geometria = false; }
   else if (b.dataset.fontm) L.fontId = b.dataset.fontm;
   else if (b.dataset.sfondo) L.sfondo = b.dataset.sfondo;
@@ -10650,10 +10724,9 @@ function collega(passo) {
   }
 
   if (id === 'colori') collegaCursore('#bordoM', '#bordoMN', (v) => { attivo().bordo = v; });
-  if (id === 'posizione') {
-    collegaCursore('#largM', '#largMN', (v) => { attivo().larghezzaVoluta = v; });
-    collegaTrascinamento();
-  }
+  if (id === 'posizione') collegaCursore('#largM', '#largMN', (v) => { attivo().larghezzaVoluta = v; });
+  // il toggle dei lati sta sull'anteprima e serve in ogni passo
+  collegaTrascinamento();
 }
 
 /* Cursore e casella si tengono allineati, come nello studio: si ridisegna
@@ -10681,14 +10754,25 @@ function collegaTrascinamento() {
   const scenaEl = $('#scena');
   let preso = null;
 
+  /* Il toggle dei lati vive sull'anteprima, quindi il suo tocco si prende
+     qui e non con la delega del pannello. */
+  scenaEl.addEventListener('click', (ev) => {
+    const b = ev.target.closest && ev.target.closest('.unLato');
+    if (!b || b.disabled) return;
+    latoAperto = b.dataset.lato;
+    if (ganci.disegnaPannello) ganci.disegnaPannello();
+    ridisegna();
+  });
+
   scenaEl.addEventListener('pointerdown', (ev) => {
     const grafica = ev.target.closest && ev.target.closest('.grafica');
     if (!grafica || !scelta) return;
     const p = inMillimetri(ev);
     if (!p) return;
-    const P = piatto(cat);
-    const a = C.angolo(latoAperto, scelta[latoAperto].posizione, P.largo, P.alto);
-    preso = { dx: p.x - a.x, dy: p.y - a.y, W: P.largo, H: P.alto };
+    const g = (calcolo[latoAperto] || {}).g;
+    const G = misuraGrafica(latoAperto);
+    const a = C.angolo(latoAperto, scelta[latoAperto].posizione, G.largo, G.alto);
+    preso = { dx: p.x - a.x, dy: p.y - a.y, W: G.largo, H: G.alto };
     grafica.style.cursor = 'grabbing';
     scenaEl.setPointerCapture(ev.pointerId);
     ev.preventDefault();
@@ -10732,8 +10816,8 @@ function collegaTrascinamento() {
 function muoviGrafica() {
   const gr = $('#scena .grafica');
   if (!gr) return;
-  const P = piatto(cat);
-  const a = C.angolo(latoAperto, scelta[latoAperto].posizione, P.largo, P.alto);
+  const G = misuraGrafica(latoAperto);
+  const a = C.angolo(latoAperto, scelta[latoAperto].posizione, G.largo, G.alto);
   gr.setAttribute('transform', 'translate(' + numeroSecco(a.x) + ' ' + numeroSecco(a.y) + ')');
   const d = $('#dovesta');
   if (d) d.textContent = dovesta(scelta[latoAperto], latoAperto);
@@ -11171,10 +11255,10 @@ function promemoria(o, c) {
     o.correzioni.forEach(x => r.push('  ' + x));
     r.push('');
   }
-  r.push('La posizione e\' quella del piatto della pressa, non della scritta:');
-  r.push('la scritta sta al centro del piatto. Si misura dal punto piu\' alto in');
-  r.push('cui il piatto puo\' stare, poco sotto lo scollo, al centro del capo.');
-  r.push('Se resta un dubbio, comanda l\'anteprima dell\'ordine.');
+  r.push('La posizione e\' quella della scritta: si misura dal suo angolo in');
+  r.push('alto a sinistra, contando dal punto piu\' alto in cui puo\' stare,');
+  r.push('poco sotto lo scollo, e dal centro del capo. Se resta un dubbio,');
+  r.push('comanda l\'anteprima dell\'ordine.');
   return r.join('\n');
 }
 
@@ -11698,18 +11782,27 @@ const DISEGNO_MAGLIETTA =
   'stroke-width="4" stroke-linejoin="round" d="M38 6 L22 12 L10 26 L20 34 L28 28 L28 56 ' +
   'L72 56 L72 28 L80 34 L90 26 L78 12 L62 6 Q50 20 38 6 Z"/></svg>';
 
-function disegnaPannello() {
+/* Il pannello si ridisegna a ogni scelta, e ridisegnandolo tornerebbe in
+   cima: chi ha appena toccato un colore in fondo alla tavolozza si
+   ritroverebbe altrove e non vedrebbe nemmeno che cosa ha scelto. Si
+   riporta dov'era. Solo cambiando passo si torna in cima, perche' li' il
+   contenuto e' un altro. */
+let scorriDaTenere = null;
+function disegnaPannello(tieniLaVista) {
   const p = $('#pannello');
+  const prima = p.scrollTop;
+  const rimetti = () => { p.scrollTop = tieniLaVista ? prima : 0; };
+
   if (tipo === null) {
     p.innerHTML = pannelloScelta();
-    p.scrollTop = 0;
+    rimetti();
     segnaPassi();
     aggiornaFondo();
     return;
   }
   if (tipo === 'maglietta') {
     p.innerHTML = window.Magliette.pannello(passo);
-    p.scrollTop = 0;
+    rimetti();
     window.Magliette.collega(passo);
     segnaPassi();
     aggiornaFondo();
@@ -11719,7 +11812,7 @@ function disegnaPannello() {
   else if (passi()[passo].id === 'stile')  p.innerHTML = pannelloStile();
   else if (passi()[passo].id === 'colori') p.innerHTML = pannelloColori();
   else if (passi()[passo].id === 'misura') p.innerHTML = pannelloMisura();
-  p.scrollTop = 0;
+  rimetti();
 
   if (passi()[passo].id === 'misura') { setTimeout(spegniMisureCorte, 30); collegaDistanza(); }
   if (passi()[passo].id === 'stile')  setTimeout(spegniCaratteriStretti, 30);
@@ -11964,7 +12057,11 @@ function scegliTipo(t) {
                                 : t === 'portachiavi' ? 'scegli il nome, il carattere e i colori'
                                 : 'un portachiavi o una maglietta';
   if (t === 'maglietta') {
-    window.Magliette.avvia(cat, { disegna, aggiornaFondo, disegnaPannello });
+    window.Magliette.avvia(cat, {
+      disegna, aggiornaFondo,
+      // ridisegnando dopo una scelta si tiene la vista dov'era
+      disegnaPannello: () => disegnaPannello(true),
+    });
     setTimeout(() => scaldaFont(cat.magliette.font), 0);
   }
   else if (t === 'portachiavi') { scelta = sceltaIniziale(); ultimo = null; }
@@ -12759,9 +12856,8 @@ function vistaDispositivo() {
         'colori, per la carta da stampare e pressare, e un file per ogni ' +
         'colore, in nero, per il vinile da tagliare. Quale usare lo decidi ' +
         'davanti alla macchina. C’è anche un <b>promemoria</b> col colore ' +
-        'della maglietta e i millimetri sotto il collo a cui posare il ' +
-        'piatto: dai file quelli non si ricavano, perché il capo si adagia ' +
-        'a mano. ' +
+        'della maglietta e i millimetri a cui va la scritta: dai file quelli ' +
+        'non si ricavano, perché il capo si adagia a mano. ' +
         'Vengono prese solo le magliette <b>pronte</b>.</p>'
       : '<p>Un archivio disposto <b>come si stampa</b>: una cartella per ogni ' +
         'caricamento di bobine, col nome dei colori da montare, e dentro una ' +
