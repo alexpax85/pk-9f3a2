@@ -102,13 +102,25 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 
 /* --------------------------- comandi del passo -------------------------- */
 
-#nome {
-  width: 100%; min-height: var(--tocco);
-  font-size: 30px; font-weight: 600; text-align: center;
+/* Il nome puo' stare su piu' righe, quindi e' una textarea, ma deve restare
+   la casella grande e centrata di prima. Va scritta come `#pannello #nome`
+   perche' la regola generale delle textarea (piu' sotto, per le magliette) e'
+   piu' specifica del solo `#nome` e le passerebbe davanti. */
+#pannello #nome {
+  width: 100%; box-sizing: border-box; min-height: var(--tocco);
+  font: inherit; font-size: 30px; font-weight: 600; text-align: center;
+  line-height: 1.2;
   padding: 12px 16px; border: 2px solid var(--linea); border-radius: 14px;
   background: var(--carta); color: inherit;
+  /* il numero di righe lo decide il catalogo: non c'e' niente da trascinare,
+     e su un tablet la maniglia si prende per sbaglio. Lo scorrimento invece
+     resta quello di serie: un nome di quattordici lettere larghe (WWWWWW...)
+     su un telefono da 375 px va a capo da solo, e nascondendolo il cliente
+     scriverebbe alla cieca. Con i nomi veri non succede: «GIOVANBATTISTA»
+     tutto maiuscolo ci sta. */
+  resize: none;
 }
-#nome:focus { outline: none; border-color: var(--tinta); }
+#pannello #nome:focus { outline: none; border-color: var(--tinta); }
 #contatore { text-align: center; color: var(--tenue); font-size: 14px; margin-top: 8px; }
 
 .scelte { display: grid; gap: 10px; }
@@ -136,7 +148,10 @@ input, textarea { user-select: text; -webkit-user-select: text; }
 }
 .scelta[aria-pressed="true"] { border-color: var(--tinta); box-shadow: inset 0 0 0 1px var(--tinta); }
 .scelta:disabled { opacity: .4; }
-.scelta .campione { display: block; font-size: 30px; line-height: 1.15; overflow: hidden; white-space: nowrap; }
+/* `overflow:hidden` serve in orizzontale, per i nomi lunghi, ma taglia anche
+   sopra e sotto: con due righe l'interlinea di 1,15 mangiava 9 px alle code
+   del Pacifico. 1,35 le lascia fuori in tutti e cinque i caratteri. */
+.scelta .campione { display: block; font-size: 30px; line-height: 1.35; overflow: hidden; white-space: nowrap; }
 .scelta .motivo:empty { display: none; }
 .scelta .titolo { font-weight: 650; }
 .scelta .sotto { color: var(--tenue); font-size: 14px; }
@@ -9326,12 +9341,21 @@ const INIZIALE = {
     bordo: 2,
     bordoMax: 4,                 // fin dove il chiosco puo' ingrossarlo da solo
     minSpessore: 1.2,
+    /* Per riga, non in tutto: e' la riga piu' lunga a decidere quanto
+       vengono piccole le lettere, perche' il pezzo si adatta in larghezza. */
     maxCaratteri: 14,
+    /* Due righe, per i nomi che su una sola non ci stanno. Piu' di due non
+       se ne offrono: l'interlinea buona e' stata misurata su due righe (vedi
+       INTERLINEA_REL in chiosco.js) e su tre il pezzo viene alto quanto
+       largo. Mettendo 1 la seconda riga sparisce e il chiosco torna com'era. */
+    maxRighe: 2,
     formaBase: 'contorno',
     raggio: 4,
     adattaA: 'larghezza',
     allineamento: 'centro',
-    interlinea: 1.15,
+    /* niente `interlinea`: con due righe la calcola il chiosco, perche' va
+       tenuta in proporzione a lettere che secondo il nome e la misura sono
+       alte da 6 a 29 mm */
     spaziatura: 0,
     ritocco: 0,
     riempiBuchi: true,
@@ -11339,6 +11363,32 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s).replace(/[&<>"]/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+/* ------------------------------------------------------- il nome, a righe */
+
+/* Quante righe scritte davvero: il motore salta quelle vuote, quindi
+   contarle qui allo stesso modo e' l'unico modo di non sbagliare
+   l'interlinea. Stessa regola delle magliette (T.quanteRighe). */
+const quanteRighe = (t) =>
+  String(t || '').split('\n').map(r => r.trim()).filter(r => r.length).length;
+
+/* Il nome su una riga sola: serve agli elenchi, ai file e al riepilogo, dove
+   un a-capo o sparisce o rompe la riga. Il punto in mezzo dice che le righe
+   erano due, cosa che uno spazio non direbbe. */
+const nomeUnaRiga = (t) =>
+  String(t || '').split('\n').map(r => r.trim()).filter(Boolean).join(' \u00b7 ');
+
+/* Il nome come lo accetta il chiosco: al massimo maxRighe righe, ognuna di
+   maxCaratteri lettere. Il limite e' per riga e non sul totale perche' il
+   pezzo si adatta in larghezza: e' la riga piu' lunga a decidere quanto
+   vengono piccole le lettere, e una seconda riga corta non toglie niente. */
+function ripulisciNome(t) {
+  const R = cat.regole;
+  return String(t == null ? '' : t).replace(/\r\n?/g, '\n').split('\n')
+    .slice(0, Math.max(1, R.maxRighe || 1))
+    .map(r => r.slice(0, R.maxCaratteri))
+    .join('\n');
+}
+
 /* Le stesse posizioni dello studio, dette come le direbbe un cliente. */
 const POSIZIONI = {
   'sinistra': 'A sinistra',
@@ -11431,7 +11481,10 @@ function componiCfg(s, mod) {
     formaBase: (mod && mod.formaBase) || R.formaBase,
     raggio: R.raggio,
     spaziatura: R.spaziatura,
-    interlinea: R.interlinea,
+    /* L'interlinea non sta nel catalogo: con una riga sola non serve, e con
+       due va misurata sul nome (vedi interlineaPer). Chi costruisce la passa
+       in `mod`; chi non la passa sta guardando una riga sola o una bozza. */
+    interlinea: (mod && mod.interlinea) || 0,
     riempiBuchi: R.riempiBuchi,
     crocini: R.crocini,
     ritocco: R.ritocco,
@@ -11461,6 +11514,33 @@ const TOLL_PROVA = 0.03;
 const TOLL_BOZZA = 0.08;
 const TOLL_ARCHI = 0.12;   // gli archi tondi del bordo, sempre solo nelle prove
 
+/* Lo spazio fra due righe, in frazione dell'altezza di una riga. Il motore lo
+   vuole in millimetri, ma qui le lettere sono alte da 6 mm («Massimiliano De
+   Angelis» sul pezzo da 50) a 29 mm («Anna Rossi» su quello da 90) secondo
+   quanto e' lungo il nome e quanto e' grande il pezzo: un valore fisso
+   sarebbe stretto in un caso e sbracato nell'altro, come gia' si era visto
+   sulle magliette.
+
+   0,10 e' misurato su 60 casi (5 caratteri x 6 nomi a due righe x 2 misure).
+   E' la frazione piu' piccola in cui la fascia di base fra le due righe si
+   legge come un contorno: sotto, i bordi delle due righe si fondono, e a
+   interlinea zero fra «Anna» e «Rossi» resta un blocco pieno. Verso l'alto il
+   limite e' 0,14, l'ultima frazione in cui il bordo massimo riesce ancora a
+   tenere unite le due righe in tutti e 60 i casi (a 0,18 ne perde 5). E piu'
+   si sale piu' spesso il bordo va ingrossato, il che ingrossa il disegno: a
+   0,10 restano al bordo di catalogo 47 casi su 60, a 0,14 solo 37. */
+const INTERLINEA_REL = 0.10;
+
+/* L'interlinea in millimetri per una scritta gia' costruita. L'altezza di una
+   riga si ricava da quella del blocco togliendo i vuoti che ci sono gia'
+   dentro, come fa tessile.js. Con una riga sola non c'e' niente da spaziare. */
+function interlineaPer(g, righe, gia) {
+  if (righe < 2 || !g || g.errore) return 0;
+  const altezzaRiga = (g.altezzaTesto - (gia || 0) * (righe - 1)) / righe;
+  if (!(altezzaRiga > 0)) return 0;
+  return Math.round(altezzaRiga * INTERLINEA_REL * 100) / 100;
+}
+
 /* Prova, misura, corregge. Restituisce sempre una configurazione stampabile
    oppure, quando non si puo' rimediare, il motivo in parole semplici. */
 function adatta(s) {
@@ -11479,17 +11559,33 @@ function adatta(s) {
      piu'. Quanto sporge non dipende dalla larghezza, quindi lo si misura una
      volta e poi si azzecca la dimensione al primo colpo. */
   let sporgenza = null;
+  /* L'interlinea di questo nome vale quasi uguale in tutte le prove, perche'
+     le prove cambiano il bordo e la forma, non quanto vengono grandi le
+     lettere: si porta avanti come la sporgenza, cosi' dalla seconda in poi si
+     parte gia' vicini e non si spende un giro per ritrovarla. */
+  let interlineaVista = 0;
+  const righe = quanteRighe(s.nome);
+  /* Nello stesso ciclo si insegue anche l'interlinea, che si ricava
+     dall'altezza appena misurata. Le due ricerche non si disturbano:
+     l'adattamento e' sulla larghezza, e allargare lo spazio fra le righe alza
+     il pezzo senza cambiarne la scala. Un giro in piu' dei quattro di prima,
+     perche' la prima misura dell'altezza arriva solo dopo il primo. */
   function provaCon(bordo, formaBase) {
     let dim = larghezzaVoluta - (sporgenza || 0), cfg = null, g = null;
-    for (let i = 0; i < 4; i++) {
-      cfg = componiCfg(s, { bordo, formaBase, dimensione: dim });
+    let interlinea = interlineaVista;
+    for (let i = 0; i < 5; i++) {
+      cfg = componiCfg(s, { bordo, formaBase, dimensione: dim, interlinea });
       // il controllo dello spessore costa quanto tutto il resto: si fa una
       // volta sola alla fine, sulla configurazione buona
       g = costruisci(cfg, { saltaSpessore: true, tolleranzaCurva: TOLL_BOZZA, tolleranzaArco: TOLL_ARCHI });
       if (g.errore) return { cfg, g };
       sporgenza = Math.round((g.W - dim) * 100) / 100;
       const scarto = larghezzaVoluta - g.W;
-      if (Math.abs(scarto) < 0.15) break;
+      const nuova = interlineaPer(g, righe, interlinea);
+      interlineaVista = nuova;
+      // con una riga sola `nuova` resta zero e il ciclo e' quello di prima
+      if (Math.abs(scarto) < 0.15 && Math.abs(nuova - interlinea) < 0.05) break;
+      interlinea = nuova;
       dim = Math.max(2 * bordo + 1, dim + scarto);
     }
     return { cfg, g };
@@ -11633,12 +11729,30 @@ function nomeColore(hex) {
 }
 
 function pannelloNome() {
-  return '<h2>' + PASSI_PORTACHIAVI[0].titolo + '</h2><p class="guida">' + PASSI_PORTACHIAVI[0].guida + '</p>' +
-    '<input id="nome" type="text" autocomplete="off" autocapitalize="words" ' +
-    'spellcheck="false" maxlength="' + cat.regole.maxCaratteri + '" ' +
-    'value="' + esc(scelta.nome) + '" placeholder="Il tuo nome">' +
+  const righe = Math.max(1, cat.regole.maxRighe || 1);
+  /* Che si possa andare a capo va detto: nessuno prova il tasto invio su un
+     chiosco se non gli si dice che c'e' una seconda riga. */
+  const guida = PASSI_PORTACHIAVI[0].guida +
+    (righe > 1 ? ' Se non ci sta tutto, vai a capo: le righe possono essere ' +
+                 righe + '.' : '');
+  /* Una textarea e non piu' una casella: il limite delle lettere pero' resta
+     per riga, quindi non puo' farlo `maxlength` (li conterebbe tutti insieme,
+     a-capo compreso) e lo fa ripulisciNome a ogni tasto.
+     L'a-capo subito dopo il tag lo mangia il parser HTML: se ne mette uno in
+     piu', cosi' un nome che comincia con una riga vuota resta com'era. */
+  return '<h2>' + PASSI_PORTACHIAVI[0].titolo + '</h2><p class="guida">' + guida + '</p>' +
+    '<textarea id="nome" rows="' + righe + '" autocomplete="off" ' +
+    'autocapitalize="words" spellcheck="false" placeholder="Il tuo nome">' +
+    '\n' + esc(scelta.nome) + '</textarea>' +
     '<div id="contatore"></div>';
 }
+
+/* Il nome dentro al campione di un carattere: le righe si vedono tutte,
+   senno' il carattere si sceglie guardando una cosa diversa da quella che si
+   stampa. `.campione` e' nowrap, ma un <br> va a capo lo stesso. */
+const nomeCampione = () =>
+  (scelta.nome.trim() ? scelta.nome : 'Nome')
+    .split('\n').map(r => esc(r) || '&nbsp;').join('<br>');
 
 function pannelloStile() {
   return '<h2>' + PASSI_PORTACHIAVI[1].titolo + '</h2><p class="guida">' + PASSI_PORTACHIAVI[1].guida + '</p>' +
@@ -11646,7 +11760,7 @@ function pannelloStile() {
       '<button type="button" class="scelta" data-font="' + esc(id) + '" ' +
       'aria-pressed="' + (scelta.fontId === id ? 'true' : 'false') + '">' +
       '<span class="cresci"><span class="campione" style="font-family:\'pk-' + esc(id) + '\'">' +
-      esc(scelta.nome || 'Nome') + '</span>' +
+      nomeCampione() + '</span>' +
       '<span class="sotto motivo"></span></span></button>').join('') + '</div>';
 }
 
@@ -11746,7 +11860,7 @@ function pannelloFine(ordine) {
     '<h2>Ordine registrato</h2>' +
     '<p class="guida">Di’ questo numero a chi ti sta servendo.</p>' +
     '<div class="riepilogo">' +
-    esc(scelta.nome) + ' · ' + esc(nomeColore(scelta.coloreTesto)) + ' su ' +
+    esc(nomeUnaRiga(scelta.nome)) + ' · ' + esc(nomeColore(scelta.coloreTesto)) + ' su ' +
     esc(nomeColore(scelta.coloreBase)) + '<br>' +
     esc(m.nome || '') + ' · ' + (m.mm || '') + ' mm' + prezzo(m) +
     (cat.asole.length > 1
@@ -11820,9 +11934,22 @@ function disegnaPannello(tieniLaVista) {
   if (passi()[passo].id === 'nome') {
     const campo = $('#nome');
     campo.addEventListener('input', () => {
-      scelta.nome = campo.value;
+      const pulito = ripulisciNome(campo.value);
+      /* Riscrivere il campo porta il cursore in fondo, quindi lo si fa solo
+         quando qualcosa e' stato davvero tagliato: incollando un nome lungo,
+         non a ogni lettera. */
+      if (pulito !== campo.value) campo.value = pulito;
+      scelta.nome = pulito;
       contatore();
       rigeneraFraPoco();
+    });
+    /* A righe piene l'invio si ferma qui. Lasciarlo scrivere e togliere poi
+       la riga di troppo funzionerebbe uguale, ma a ogni pressione il cursore
+       salterebbe in fondo al nome. */
+    campo.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter') return;
+      if (campo.value.split('\n').length >= Math.max(1, cat.regole.maxRighe || 1))
+        ev.preventDefault();
     });
     setTimeout(() => campo.focus(), 60);
     contatore();
@@ -11834,9 +11961,15 @@ function disegnaPannello(tieniLaVista) {
 function contatore() {
   const c = $('#contatore');
   if (!c) return;
-  const resta = cat.regole.maxCaratteri - scelta.nome.length;
-  c.textContent = resta <= 4
-    ? (resta === 0 ? 'Hai raggiunto il massimo' : 'Ancora ' + resta + ' lettere')
+  const R = cat.regole;
+  const righe = scelta.nome.split('\n');
+  /* Il limite e' per riga, quindi si guarda la riga piu' piena: e' quella che
+     si fermera' per prima, ed e' l'unica di cui valga la pena avvisare. */
+  const resta = R.maxCaratteri - Math.max(...righe.map(r => r.length));
+  const aRighe = Math.max(1, R.maxRighe || 1) > 1;
+  c.textContent =
+    resta <= 0 ? (aRighe ? 'Questa riga è piena' : 'Hai raggiunto il massimo')
+    : resta <= 4 ? 'Ancora ' + resta + ' lettere' + (aRighe ? ' in questa riga' : '')
     : '';
 }
 
@@ -11920,8 +12053,17 @@ function rigeneraFraPoco() {
 
 function bozza() {
   if (!scelta.nome.trim()) { ultimo = { vuoto: true }; disegna(); aggiornaFondo(); return; }
-  const g = costruisci(componiCfg(scelta), { saltaSpessore: true, tolleranzaCurva: TOLL_BOZZA, tolleranzaArco: TOLL_ARCHI });
+  const opz = { saltaSpessore: true, tolleranzaCurva: TOLL_BOZZA, tolleranzaArco: TOLL_ARCHI };
+  let g = costruisci(componiCfg(scelta), opz);
   if (g.errore) return;
+  /* Quanto spaziare due righe si sa solo dopo aver misurato quanto sono alte:
+     la prima costruzione lo dice e la seconda lo usa. Chi scrive su una riga
+     sola non paga niente di tutto questo. */
+  const il = interlineaPer(g, quanteRighe(scelta.nome), 0);
+  if (il > 0) {
+    const g2 = costruisci(componiCfg(scelta, { interlinea: il }), opz);
+    if (!g2.errore) g = g2;
+  }
   ultimo = { g, cfg: null, correzioni: [], provvisorio: true };
   disegna();
   aggiornaFondo();
@@ -12027,7 +12169,7 @@ function rigenera() {
   aggiornaFondo();
   // il campione dei caratteri mostra il nome vero, quindi va rinfrescato
   $$('.scelta[data-font] .campione').forEach(el => {
-    el.textContent = scelta.nome || 'Nome';
+    el.innerHTML = nomeCampione();
   });
   if (passi()[passo].id === 'stile') spegniCaratteriStretti();
 }
@@ -12080,7 +12222,10 @@ function conferma() {
   if (e.problema || e.errore || e.vuoto) { ultimo = e; aggiornaFondo(); return; }
   const m = cat.misure[scelta.misura] || {};
   const ordine = D.aggiungiOrdine({
-    cliente: scelta.nome,
+    /* Su una riga sola: `cliente` finisce negli elenchi, nel riepilogo CSV e
+       nel nome delle cartelle, e li' un a-capo o sparisce o rompe la riga.
+       Il nome vero, righe comprese, resta in `scelta` e in `cfg.testo`. */
+    cliente: nomeUnaRiga(scelta.nome),
     scelta: D.clona(scelta),
     etichette: {
       coloreBase: nomeColore(scelta.coloreBase),
@@ -12090,7 +12235,9 @@ function conferma() {
       anello: POSIZIONI[scelta.posAsola] || scelta.posAsola,
     },
     cfg: e.cfg,
-    cfgOriginale: componiCfg(scelta),   // com'era prima delle correzioni
+    // com'era prima delle correzioni: l'interlinea non e' una correzione, si
+    // ricava dal nome, quindi e' gia' quella buona
+    cfgOriginale: componiCfg(scelta, { interlinea: e.cfg.interlinea }),
     correzioni: e.correzioni,
   });
   if (!ordine) { $('#nota').textContent = 'Non riesco a salvare l’ordine.'; return; }
@@ -12439,12 +12586,18 @@ function vistaCatalogo() {
 
     '<div class="sezione"><h3>Regole di stampa</h3>' +
     '<p>Sono i valori che nello studio imposti a mano. Il chiosco può solo ' +
-    'ingrossare il bordo, mai ridurlo sotto il minimo che scegli qui.</p>' +
+    'ingrossare il bordo, mai ridurlo sotto il minimo che scegli qui. ' +
+    'Le lettere si contano per riga: è la riga più lunga a decidere quanto ' +
+    'vengono piccole.</p>' +
     '<div class="griglia2">' +
       numero('bordo', 'Spessore bordo (mm)', 0.4, 10, 0.1) +
       numero('bordoMax', 'Bordo massimo automatico (mm)', 0.4, 12, 0.1) +
       numero('minSpessore', 'Spessore minimo stampabile (mm)', 0.4, 5, 0.1) +
-      numero('maxCaratteri', 'Lettere al massimo', 3, 40, 1) +
+      numero('maxCaratteri', 'Lettere al massimo per riga', 3, 40, 1) +
+      /* Fino a due: lo spazio fra le righe e' stato misurato su due righe, e
+         su tre il pezzo verrebbe alto quanto largo. A 1 il chiosco torna a
+         una riga sola. */
+      numero('maxRighe', 'Righe al massimo', 1, 2, 1) +
       numero('foro', 'Foro portachiavi (mm)', 1, 10, 0.1) +
       numero('anello', 'Anello attorno al foro (mm)', 0.5, 8, 0.1) +
     '</div></div>' +
