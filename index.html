@@ -10829,8 +10829,9 @@ function tocco(b) {
 }
 
 /* Aggancia quello che la delega dei bottoni non copre: la casella del testo
-   e i cursori, che mandano `input` e non `click`. */
-function collega(passo) {
+   e i cursori, che mandano `input` e non `click`. `ridisegno` dice che il
+   pannello e' stato rifatto dopo una scelta nello stesso passo. */
+function collega(passo, ridisegno) {
   passoCorrente = passo;
   const id = PASSI[passo].id;
 
@@ -10847,7 +10848,11 @@ function collega(passo) {
         });
         fraPoco();
       });
-      setTimeout(() => campo.focus(), 60);
+      /* Il fuoco sulla casella solo arrivando al passo. In questo pannello ci
+         sono anche i caratteri, e ogni scelta lo ridisegna: rimettere il fuoco
+         ogni volta tirava la casella in vista e la scelta appena toccata
+         finiva fuori dallo schermo (sull'iPad, con la tastiera che saliva). */
+      if (!ridisegno) setTimeout(() => campo.focus(), 60);
     }
   }
 
@@ -12021,7 +12026,8 @@ function disegnaPannello(tieniLaVista) {
   if (tipo === 'maglietta') {
     p.innerHTML = window.Magliette.pannello(passo);
     rimetti();
-    window.Magliette.collega(passo);
+    // le magliette devono sapere se e' un ridisegno: il fuoco lo danno solo arrivando
+    window.Magliette.collega(passo, tieniLaVista);
     segnaPassi();
     aggiornaFondo();
     return;
