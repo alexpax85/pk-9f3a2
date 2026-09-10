@@ -9471,6 +9471,12 @@ const INIZIALE = {
     sovrapp: 1,
     asolaX: 0,
     asolaY: 0,
+    /* Le altezze del solido (.3mf), con gli stessi nomi dei campi dello
+       studio. Il motore non le guarda: valgono solo per il solido, gli SVG
+       non hanno un'altezza. Sono le stesse di Solido.ALTEZZA_BASE e
+       ALTEZZA_PARTE, che restano il ripiego per gli ordini presi prima. */
+    spesBase: 3,
+    spesParte: 1,
   },
 
   /* ------------------------------------------------------------ magliette
@@ -11602,6 +11608,9 @@ function componiCfg(s, mod) {
     sovrapp: s.distanza === undefined ? R.sovrapp : sovrappDaDistanza(R, s.distanza),
     asolaX: R.asolaX, asolaY: R.asolaY,
     minSpessore: R.minSpessore,
+    /* Non sono geometria, il motore le ignora: stanno nella cfg perche' l'ordine
+       le porti con se' e si possano ritoccare come le altre misure. */
+    spesBase: R.spesBase, spesParte: R.spesParte,
   };
 }
 
@@ -12563,7 +12572,17 @@ const RITOCCABILI = [
   /* Qui si chiama col nome del motore, non «distanza»: chi ritocca un ordine
      gia' preso e' lo stesso che usa lo studio, e li' la manopola e' questa. */
   ['sovrapp',    'Sovrapposizione asola (mm)', 0, 10, 0.2],
+  ['anello',     'Anello attorno al foro (mm)', 0.5, 8, 0.1],
+  /* Le altezze contano solo per il solido: gli SVG non ne hanno. Stessi
+     limiti dei campi dello studio. */
+  ['spesBase',   'Altezza base, solo .3mf (mm)', 0.4, 30, 0.2],
+  ['spesParte',  'Altezza scritta, solo .3mf (mm)', 0.2, 20, 0.2],
 ];
+
+/* Il valore di un ordine, o quello del catalogo di adesso se l'ordine e'
+   stato preso prima che quel valore esistesse: e' lo stesso ripiego che usa
+   opzioniSolido, cosi' il campo mostra quello con cui il file uscira'. */
+const valoreOrdine = (o, k) => o.cfg[k] !== undefined ? o.cfg[k] : cat.regole[k];
 
 function ritocchi(o) {
   return '<div class="griglia2" style="margin-top:12px">' +
@@ -12571,7 +12590,7 @@ function ritocchi(o) {
       '<label class="campo">' + et +
       '<input type="number" data-ritocco="' + k + '" data-n="' + o.numero + '" ' +
       'min="' + min + '" max="' + max + '" step="' + passo + '" ' +
-      'value="' + o.cfg[k] + '"></label>').join('') +
+      'value="' + valoreOrdine(o, k) + '"></label>').join('') +
     '</div><p class="sotto" style="margin:10px 0 0">I file scaricati usano questi valori.</p>';
 }
 
@@ -12590,14 +12609,16 @@ function nomeSicuro(s, quanti) {
 const cartellaOrdine = (o) =>
   String(o.numero).padStart(3, '0') + '_' + nomeSicuro(o.cliente);
 
-/* Le opzioni del solido per un ordine. Le altezze restano quelle di Solido:
-   qui non si ritoccano, chi vuole misure diverse passa dallo studio. I due
+/* Le opzioni del solido per un ordine. Le altezze sono quelle dell'ordine,
+   che le ha prese dal catalogo quando e' stato fatto e si possono ritoccare;
+   un ordine preso prima che esistessero usa il catalogo di adesso. I due
    colori scelti dal cliente entrano nel file come colore di visualizzazione,
    cosi' aprendolo si vede subito quale parte e' quale — la bobina la sceglie
    comunque chi stampa. */
 function opzioniSolido(o) {
   const s = o.scelta || {};
-  return { nome: cartellaOrdine(o), coloreBase: s.coloreBase, coloriParti: [s.coloreTesto] };
+  return { nome: cartellaOrdine(o), coloreBase: s.coloreBase, coloriParti: [s.coloreTesto],
+           altezzaBase: valoreOrdine(o, 'spesBase'), altezzaParte: valoreOrdine(o, 'spesParte') };
 }
 
 function scaricaOrdine(numero, quali) {
@@ -12698,7 +12719,8 @@ function vistaCatalogo() {
     '<p>Sono i valori che nello studio imposti a mano. Il chiosco può solo ' +
     'ingrossare il bordo, mai ridurlo sotto il minimo che scegli qui. ' +
     'Le lettere si contano per riga: è la riga più lunga a decidere quanto ' +
-    'vengono piccole.</p>' +
+    'vengono piccole. Le altezze valgono per gli ordini presi da ora in poi; ' +
+    'su uno già preso si cambiano da «Ritocca le misure».</p>' +
     '<div class="griglia2">' +
       numero('bordo', 'Spessore bordo (mm)', 0.4, 10, 0.1) +
       numero('bordoMax', 'Bordo massimo automatico (mm)', 0.4, 12, 0.1) +
@@ -12710,6 +12732,9 @@ function vistaCatalogo() {
       numero('maxRighe', 'Righe al massimo', 1, 2, 1) +
       numero('foro', 'Foro portachiavi (mm)', 1, 10, 0.1) +
       numero('anello', 'Anello attorno al foro (mm)', 0.5, 8, 0.1) +
+      /* solo per il .3mf: gli SVG non hanno un'altezza. Stessi limiti dello studio */
+      numero('spesBase', 'Altezza base del solido (mm)', 0.4, 30, 0.2) +
+      numero('spesParte', 'Altezza scritta del solido (mm)', 0.2, 20, 0.2) +
     '</div></div>' +
 
     '<div class="sezione"><h3>Generali</h3><div class="griglia2">' +
@@ -13514,7 +13539,7 @@ window.__pk3dChiosco = {
   adatta, componiCfg, vaiA, conferma, ricomincia, Dati: D,
   misureBuone, sistemaMisura, caratteriBuoni, sistemaCarattere,
   get bloccato() { return { nessunaMisura, nessunCarattere }; },
-  apriOperatore, chiudiOperatore,
+  apriOperatore, chiudiOperatore, opzioniSolido,
   scheda(op) { opScheda = op; disegnaOperatore(); },
 };
 })();
