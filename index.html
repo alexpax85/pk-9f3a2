@@ -9744,6 +9744,11 @@ const INIZIALE = {
          riga e si converte a ogni giro dell'adattamento. */
       interlineaRel: 0.25,
       spaziatura: 0,
+      /* Lo spazio fra le lettere, come frazione dell'altezza di una riga
+         (dall'11 settembre 2026 lo regola anche il cliente, e questo e' il
+         punto di partenza). `spaziatura` qui sopra e' in millimetri e resta
+         per gli ordini vecchi: non si offre piu'. */
+      spaziaturaRel: 0,
       allineamento: 'centro',
       maxCaratteriRiga: 24,
       maxRighe: 0,                 // 0 = righe libere, come chiesto
@@ -10383,6 +10388,12 @@ function sceltaLatoIniziale(cat) {
     coloreSfondo: (M.coloriStampa[0] || {}).hex,
     coloreTesto: (M.coloriStampa[1] || M.coloriStampa[0] || {}).hex,
     larghezzaVoluta: Math.round(R.maxLarghezza * 0.7),
+    /* Spazio fra le righe e fra le lettere, come frazione dell'altezza di
+       una riga: la scritta va da 40 a 300 mm, e un valore in millimetri
+       sarebbe stretto in un caso e sbracato nell'altro. Il cliente li
+       regola dal passo della misura; si parte da quelli del catalogo. */
+    interlineaRel: R.interlineaRel,
+    spaziaturaRel: R.spaziaturaRel || 0,
     /* Dove va la scritta sul capo. Si parte in cima e centrata; il morsetto
        la rimette dentro appena si sa quanto viene grande. */
     posizione: { dalCollo: 0, scostamento: 0 },
@@ -10410,7 +10421,7 @@ function componiCfg(L, cat, mod) {
     bordo: s.colori === 1 ? 0 : (L.bordo !== undefined ? L.bordo : R.bordo),
     formaBase: s.formaBase,
     raggio: R.raggio !== undefined ? R.raggio : 6,
-    spaziatura: R.spaziatura,
+    spaziatura: m.spaziatura !== undefined ? m.spaziatura : R.spaziatura,
     interlinea: m.interlinea !== undefined ? m.interlinea : 0,
     riempiBuchi: false,
     crocini: false,
@@ -10438,12 +10449,13 @@ const quanteRighe = (testo) =>
    il rapporto e' quasi proporzionale — quasi, perche' il bordo resta della
    sua misura mentre il testo si rimpicciolisce.
 
-   Nello stesso ciclo si sistema l'interlinea. Il motore la vuole in
-   millimetri, ma qui la scritta passa da 80 a 300 mm e un valore fisso
-   sarebbe stretto in un caso e sbracato nell'altro: si tiene come frazione
-   dell'altezza di una riga, e siccome quell'altezza dipende dalla scala che
-   dipende dall'interlinea, le due si inseguono. Si itera, come fa il motore
-   per la spaziatura. */
+   Nello stesso ciclo si sistemano l'interlinea e la spaziatura. Il motore
+   le vuole in millimetri, ma qui la scritta passa da 80 a 300 mm e un
+   valore fisso sarebbe stretto in un caso e sbracato nell'altro: si tengono
+   come frazione dell'altezza di una riga, e siccome quell'altezza dipende
+   dalla scala, che dipende da loro (piu' spazio fra le lettere, lettere piu'
+   piccole a parita' di larghezza), si inseguono. Si itera, come fa il
+   motore per la spaziatura. */
 function adattaAlRiquadro(L, cat, opz) {
   const R = cat.magliette.regole;
   const maxW = R.maxLarghezza, maxH = R.maxAltezza;
@@ -10451,11 +10463,13 @@ function adattaAlRiquadro(L, cat, opz) {
   if (!righe) return { errore: 'Scrivi qualcosa da stampare.' };
 
   const voluta = Math.min(maxW, Math.max(10, L.larghezzaVoluta || maxW));
-  let dim = voluta, interlinea = 0, corretto = false, mod = null;
+  const interRel = L.interlineaRel !== undefined ? L.interlineaRel : R.interlineaRel;
+  const spazRel = L.spaziaturaRel !== undefined ? L.spaziaturaRel : (R.spaziaturaRel || 0);
+  let dim = voluta, interlinea = 0, spaziatura = 0, corretto = false, mod = null;
 
   /* La ricerca, tutta a tolleranze larghe: qui si decide soltanto. */
-  for (let giro = 0; giro < 8; giro++) {
-    mod = { adattaA: 'larghezza', dimensione: dim, interlinea };
+  for (let giro = 0; giro < 10; giro++) {
+    mod = { adattaA: 'larghezza', dimensione: dim, interlinea, spaziatura };
     const g = costruisci(componiCfg(L, cat, mod), PROVA);
     if (g.errore) return g;
 
@@ -10466,12 +10480,14 @@ function adattaAlRiquadro(L, cat, opz) {
       continue;                       // rimisurare prima di toccare altro
     }
 
-    if (righe < 2) break;             // una riga sola: niente interlinea
-    /* L'altezza di una riga, tolti i vuoti gia' messi fra le righe. */
+    /* L'altezza di una riga, tolti i vuoti gia' messi fra le righe. Con una
+       riga sola l'interlinea non serve, la spaziatura si'. */
     const altezzaRiga = (g.altezzaTesto - interlinea * (righe - 1)) / righe;
-    const nuova = Math.round(altezzaRiga * R.interlineaRel * 100) / 100;
-    if (Math.abs(nuova - interlinea) < 0.05) break;
-    interlinea = nuova;
+    const nuovaInter = righe < 2 ? 0 : Math.round(altezzaRiga * interRel * 100) / 100;
+    const nuovaSpaz = Math.round(altezzaRiga * spazRel * 100) / 100;
+    if (Math.abs(nuovaInter - interlinea) < 0.05 && Math.abs(nuovaSpaz - spaziatura) < 0.05) break;
+    interlinea = nuovaInter;
+    spaziatura = nuovaSpaz;
   }
 
   /* E una sola costruzione buona, con la precisione che tocca al pezzo che
@@ -10714,6 +10730,8 @@ function rileggiCatalogo(nuovoCat) {
       L.coloreSfondo = (M.coloriStampa[1] || M.coloriStampa[0]).hex;
     L.larghezzaVoluta = Math.min(R.maxLarghezza, Math.max(10, L.larghezzaVoluta));
     L.sfondo = 'niente';          // il secondo colore non si offre piu'
+    if (L.interlineaRel === undefined) L.interlineaRel = R.interlineaRel;
+    if (L.spaziaturaRel === undefined) L.spaziaturaRel = R.spaziaturaRel || 0;
   }
   calcolo = {};
   aggiorna();
@@ -10863,7 +10881,8 @@ function pannelloPosizione() {
     '<span class="capo">grande</span>' +
     '<input type="number" id="largMN" min="40" max="' + R.maxLarghezza + '" step="5" ' +
       'value="' + L.larghezzaVoluta + '"><span class="unita">mm</span></div>' +
-    '<p class="sotto" id="ingombro">' + (g ? esc(quantoVienGrande(g)) : '') + '</p></div>';
+    '<p class="sotto" id="ingombro">' + (g ? esc(quantoVienGrande(g)) : '') + '</p></div>' +
+    cursoriSpazi(L, T.quanteRighe(L.testo), 'M');
 
   const posti = '<div class="sezione"><h3>Dove</h3>' +
     '<p>Trascina la scritta dove vuoi che finisca sulla maglietta. Il ' +
@@ -10877,6 +10896,29 @@ function pannelloPosizione() {
 
 const quantoVienGrande = (g) =>
   'Viene ' + numero(g.W) + ' × ' + numero(g.H) + ' mm';
+
+/* I due cursori dello spazio, fra le lettere e fra le righe. Sono frazioni
+   dell'altezza di una riga, scritte in centesimi per non far leggere al
+   cliente 0,25: fra le righe da 0 al 100 % di una riga, fra le lettere da
+   -10 (si toccano) a +50 %. Quello delle righe c'e' solo se le righe sono
+   almeno due. Li usano anche i barattoli, con un suffisso diverso negli id. */
+function cursoriSpazi(L, righe, suff) {
+  const cursore = (id, titolo, min, max, passo, valore, capi) =>
+    '<div class="sezione"><h3>' + titolo + '</h3>' +
+    '<div class="cursore"><span class="capo">' + capi[0] + '</span>' +
+    '<input type="range" id="' + id + '" min="' + min + '" max="' + max + '" step="' + passo +
+      '" value="' + valore + '">' +
+    '<span class="capo">' + capi[1] + '</span>' +
+    '<input type="number" id="' + id + 'N" min="' + min + '" max="' + max + '" step="' + passo +
+      '" value="' + valore + '"><span class="unita">%</span></div></div>';
+  const cento = (v) => Math.round((v || 0) * 100);
+  return cursore('spaz' + suff, 'Spazio fra le lettere', -10, 50, 1, cento(L.spaziaturaRel),
+                 ['strette', 'larghe']) +
+    (righe > 1
+      ? cursore('inter' + suff, 'Spazio fra le righe', 0, 100, 5, cento(L.interlineaRel),
+                ['vicine', 'lontane'])
+      : '');
+}
 const numero = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
 /* I due numeri che finiscono nell'ordine, e riguardano la SCRITTA. Si
    contano dal punto piu' alto in cui puo' stare, che sul davanti e' poco
@@ -11066,7 +11108,11 @@ function collega(passo, ridisegno) {
     }
   }
 
-  if (id === 'posizione') collegaCursore('#largM', '#largMN', (v) => { attivo().larghezzaVoluta = v; });
+  if (id === 'posizione') {
+    collegaCursore('#largM', '#largMN', (v) => { attivo().larghezzaVoluta = v; });
+    collegaCursore('#spazM', '#spazMN', (v) => { attivo().spaziaturaRel = v / 100; });
+    collegaCursore('#interM', '#interMN', (v) => { attivo().interlineaRel = v / 100; });
+  }
   // il toggle dei lati sta sull'anteprima e serve in ogni passo
   collegaTrascinamento();
 }
@@ -11315,6 +11361,7 @@ function corpoOrdine(o) {
         (r.colori > 1 ? ' colori' : ' colore') +
         (cataloghi.mostraPrezzi ? ' · ' + esc(e.valuta || '') + ' ' + r.prezzo : '') +
       '</div>' +
+      ritocchiSpazi(o, r.lato, sc[r.lato] || {}) +
       '<div class="fila">' +
         '<button type="button" class="bottone piccolo" data-scaricam="colori" ' +
           'data-n="' + o.numero + '" data-lato="' + r.lato + '">A colori</button>' +
@@ -11339,6 +11386,38 @@ function corpoOrdine(o) {
 }
 
 const lavorazioneDi = (colori) => colori > 1 ? 'carta a colori' : 'vinile';
+
+/* I due spazi, ritoccabili dall'operatore dentro l'ordine: gli stessi che il
+   cliente regola dal passo della misura, in centesimi di riga. Cambiandoli
+   il pezzo si ricostruisce a precisione piena e l'ordine si riscrive. Li
+   usano anche i barattoli. */
+function ritocchiSpazi(o, lato, L) {
+  const cento = (v) => Math.round((v || 0) * 100);
+  const campo = (k, et, min, max, v) =>
+    '<label class="campo">' + et + '<input type="number" data-ritoccam="' + k + '" ' +
+    'data-n="' + o.numero + '" data-lato="' + lato + '" min="' + min + '" max="' + max +
+    '" step="1" value="' + v + '"></label>';
+  return '<div class="griglia2" style="margin-top:12px">' +
+    campo('spaziaturaRel', 'Spazio fra le lettere (% di una riga)', -10, 50, cento(L.spaziaturaRel)) +
+    campo('interlineaRel', 'Spazio fra le righe (% di una riga)', 0, 100, cento(L.interlineaRel)) +
+    '</div><p class="sotto" style="margin:10px 0 0">I file scaricati usano questi valori.</p>';
+}
+
+/* Il ritocco di un ordine gia' preso. Si ricostruisce come alla conferma,
+   alla precisione piena, e si riscrivono la scelta e il lato. */
+function ritocca(o, lato, campo, valore) {
+  const c = D.leggiCatalogo();
+  const sc = o.scelta || {}, L = sc[lato];
+  const i = (o.lati || []).findIndex(x => x.lato === lato);
+  if (!L || i < 0) return { errore: 'Questo ordine non ha quel lato.' };
+  L[campo] = valore / 100;
+  const r = T.adattaAlRiquadro(L, c);
+  if (r.errore) return { errore: r.errore };
+  const lati = o.lati.slice();
+  lati[i] = Object.assign({}, lati[i], { cfg: r.cfg, W: r.g.W, H: r.g.H });
+  D.modificaOrdine(o.numero, { scelta: sc, lati, ritoccato: true });
+  return {};
+}
 
 /* ------------------------------------------------------ il piano di lavoro */
 
@@ -11467,7 +11546,10 @@ function vistaCatalogo(c) {
     '<div class="griglia2">' +
       num('maxLarghezza', 'Larghezza massima (mm)', 50, 1000, 10) +
       num('maxAltezza', 'Altezza massima (mm)', 50, 1000, 10) +
-      num('interlineaRel', 'Interlinea (parte di una riga)', 0, 2, 0.05) +
+      /* i due spazi che il cliente regola dal passo della misura: qui il
+         valore di partenza, sempre come parte dell'altezza di una riga */
+      num('interlineaRel', 'Spazio fra le righe di partenza (parte di una riga)', 0, 2, 0.05) +
+      num('spaziaturaRel', 'Spazio fra le lettere di partenza (parte di una riga)', -0.2, 1, 0.01) +
       num('latoRiferimento', 'Riferimenti agli angoli (mm, 0 = niente)', 0, 10, 0.5) +
     '</div>' +
     '<p class="sotto">I riferimenti sono due quadratini agli angoli opposti: ' +
@@ -11644,7 +11726,7 @@ async function esporta(avanzamento) {
 }
 
 return { PASSI, avvia, rileggiCatalogo, aggiorna, pannello, collega, tocco,
-         scena, blocco, nota, conferma, pannelloFine,
+         scena, blocco, nota, conferma, pannelloFine, cursoriSpazi, ritocchiSpazi, ritocca,
          corpoOrdine, vistaLavorazioni, fileDiUnLato, nomeSicuro, disegnaCapo,
          vistaCatalogo, raccogliCatalogo, cambiaRiga, esporta, INTESTAZIONI,
   /* Aggancio per le prove, come quello del chiosco: da fuori non c'e' altro
@@ -11866,6 +11948,8 @@ function rileggiCatalogo(nuovoCat) {
     L.coloreSfondo = (M.coloriStampa[1] || M.coloriStampa[0]).hex;
   L.larghezzaVoluta = Math.min(taglia().areaLarghezza, Math.max(10, L.larghezzaVoluta));
   L.sfondo = 'niente';          // il secondo colore non si offre piu'
+  if (L.interlineaRel === undefined) L.interlineaRel = M.regole.interlineaRel;
+  if (L.spaziaturaRel === undefined) L.spaziaturaRel = M.regole.spaziaturaRel || 0;
   calcolo = null;
   aggiorna();
 }
@@ -11973,7 +12057,8 @@ function pannelloMisura() {
     '<span class="capo">grande</span>' +
     '<input type="number" id="largBN" min="20" max="' + t.areaLarghezza + '" step="5" ' +
       'value="' + L.larghezzaVoluta + '"><span class="unita">mm</span></div>' +
-    '<p class="sotto" id="ingombro">' + (g ? esc(quantoVienGrande(g)) : '') + '</p></div>';
+    '<p class="sotto" id="ingombro">' + (g ? esc(quantoVienGrande(g)) : '') + '</p></div>' +
+    window.Magliette.cursoriSpazi(L, T.quanteRighe(L.testo), 'B');
   const dove = '<div class="sezione"><h3>Dove</h3>' +
     '<p>Al centro dell’area di stampa, che sul barattolo ' + esc(t.nome.toLowerCase()) +
     ' è alta ' + numero(t.areaAltezza) + ' mm e larga ' + numero(t.areaLarghezza) +
@@ -12044,7 +12129,11 @@ function collega(passo, ridisegno) {
       if (!ridisegno) setTimeout(() => campo.focus(), 60);
     }
   }
-  if (id === 'misura') collegaCursore('#largB', '#largBN', (v) => { scelta.fronte.larghezzaVoluta = v; });
+  if (id === 'misura') {
+    collegaCursore('#largB', '#largBN', (v) => { scelta.fronte.larghezzaVoluta = v; });
+    collegaCursore('#spazB', '#spazBN', (v) => { scelta.fronte.spaziaturaRel = v / 100; });
+    collegaCursore('#interB', '#interBN', (v) => { scelta.fronte.interlineaRel = v / 100; });
+  }
 }
 
 function collegaCursore(quale, quale2, metti) {
@@ -12154,6 +12243,7 @@ function corpoOrdine(o) {
       esc(lavorazioneDi(r.colori)) + ' · ' + r.colori + (r.colori > 1 ? ' colori' : ' colore') +
       (cataloghi.mostraPrezzi && e.prezzo != null ? ' · ' + esc(e.valuta || '') + ' ' + e.prezzo : '') +
     '</div>' +
+    window.Magliette.ritocchiSpazi(o, 'fronte', s.fronte || {}) +
     '<div class="fila">' +
       '<button type="button" class="bottone piccolo" data-scaricam="colori" ' +
         'data-n="' + o.numero + '" data-lato="fronte">A colori</button>' +
@@ -12168,6 +12258,21 @@ function corpoOrdine(o) {
         (o.stato === 'fatto' ? 'Rimetti fra i pronti' : 'Segna fatto') + '</button>' +
       '<button type="button" class="bottone piccolo" data-elimina="' + o.numero + '">Elimina</button>' +
     '</div>';
+}
+
+/* Il ritocco dell'operatore, come per le magliette ma con l'area della
+   taglia al posto del letto. */
+function ritocca(o, lato, campo, valore) {
+  const c = D.leggiCatalogo();
+  const sc = o.scelta || {}, L = sc.fronte;
+  if (!L || !(o.lati || []).length) return { errore: 'Questo ordine non ha una scritta.' };
+  L[campo] = valore / 100;
+  const r = T.adattaAlRiquadro(L, comeMaglietta(c, misureDi(o)));
+  if (r.errore) return { errore: r.errore };
+  const lati = o.lati.slice();
+  lati[0] = Object.assign({}, lati[0], { cfg: r.cfg, W: r.g.W, H: r.g.H });
+  D.modificaOrdine(o.numero, { scelta: sc, lati, ritoccato: true });
+  return {};
 }
 
 /* Il piano di lavoro: lo stesso criterio delle magliette (a un colore si
@@ -12426,7 +12531,7 @@ async function esporta(avanzamento) {
 
 return { PASSI, avvia, rileggiCatalogo, aggiorna, pannello, collega, tocco,
          scena, blocco, nota, conferma, pannelloFine,
-         corpoOrdine, vistaLavorazioni, fileDiUnLato, nomeSicuro,
+         corpoOrdine, vistaLavorazioni, fileDiUnLato, nomeSicuro, ritocca,
          vistaCatalogo, raccogliCatalogo, cambiaRiga, esporta, INTESTAZIONI,
   _diagnostica: () => ({ cat, scelta, calcolo, passoCorrente }) };
 })();
@@ -14522,6 +14627,21 @@ function collega() {
 
   // ritocchi su un ordine gia' preso
   $('#opCorpo').addEventListener('change', (ev) => {
+    /* Il ritocco di una maglietta o di un barattolo lo fa il suo modulo, che
+       ricostruisce il pezzo e riscrive l'ordine; qui si ridisegna il corpo
+       dell'ordine, cosi' anteprima e misure tornano quelle nuove. */
+    const rm = ev.target.closest('[data-ritoccam]');
+    if (rm) {
+      const n = Number(rm.dataset.n);
+      const o = D.leggiOrdini().find(x => x.numero === n);
+      const M = modulo(o && o.tipo);
+      if (!M) return;
+      const esito = M.ritocca(o, rm.dataset.lato, rm.dataset.ritoccam, Number(rm.value));
+      if (esito && esito.errore) return avvisa(esito.errore);
+      const dove = $('.dentro[data-corpo="' + n + '"]');
+      if (dove) dove.innerHTML = M.corpoOrdine(D.leggiOrdini().find(x => x.numero === n));
+      return;
+    }
     const r = ev.target.closest('[data-ritocco]');
     if (!r) return;
     const n = Number(r.dataset.n);
