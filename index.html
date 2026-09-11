@@ -9004,6 +9004,15 @@ return { crea, byte, rigaCSV, crc32 };
 
    Non sostituisce gli SVG: quelli restano la strada di sempre, per chi
    preferisce estrudere e allineare da se'.
+
+   Seconda forma, a scelta: la SEDE INCASSATA. La base esce con l'impronta
+   della scritta scavata dentro di qualche millimetro e la scritta esce come
+   pezzo a se', appoggiato sul piatto accanto alla base: si stampano a parte
+   e la scritta si incolla nella sede. Il risultato a vista e' lo stesso del
+   pezzo multicolore, ma quando il processo lo chiede (una bobina sola, due
+   materiali che non si legano, la scritta in un colore che l'altra stampante
+   non ha) e' la strada che si faceva a mano nello slicer, sottraendo la
+   scritta dalla base e spostando i pezzi.
    ===================================================================== */
 window.Solido = (function () {
 'use strict';
@@ -9090,7 +9099,7 @@ function raddrizza(an, H) {
      quelli che aprono, e poi ogni bordo orizzontale si spezza su quelli che
      gli cascano dentro. Sono i 78 lati spaiati che «Anna» in Montserrat
      lasciava aperti prima di questa cucitura. */
-function maglia(anelliP, z0, z1) {
+function scansione(anelliP) {
   const punti = [], chiave = new Map();
   function vert(x, y) {
     const k = Math.round(x * CIFRE) + ',' + Math.round(y * CIFRE);
@@ -9229,16 +9238,28 @@ function maglia(anelliP, z0, z1) {
     aperti = restano.concat(nuove);
   }
 
-  /* Le pareti. Ogni lato si ripercorre passando per i tagli che la scansione
-     gli ha lasciato, nel verso deciso per il suo anello. */
+  return { punti, vert, segmenti, facciaT, verso };
+}
+
+/* I punti di un lato in ordine, da un estremo all'altro passando per i tagli
+   che la scansione gli ha lasciato, nel verso deciso per il suo anello. */
+function catenaLato(sc, s, verso) {
+  const dentro = [...s.tagli.entries()].sort((u, v) => u[0] - v[0]).map(e => e[1]);
+  if (s.b[1] < s.a[1]) dentro.reverse();
+  const fila = [sc.vert(s.a[0], s.a[1]), ...dentro, sc.vert(s.b[0], s.b[1])];
+  if (verso < 0) fila.reverse();
+  return fila.filter((i, k) => k === 0 || i !== fila[k - 1]);
+}
+
+/* Il prisma pieno fra z0 e z1: faccia di sopra, faccia di sotto (la stessa,
+   girata) e le pareti che le cuciono. */
+function maglia(anelliP, z0, z1) {
+  const sc = scansione(anelliP), { punti, segmenti, facciaT, verso } = sc;
+
   const pareti = [];
   for (const s of segmenti) {
-    const dentro = [...s.tagli.entries()].sort((u, v) => u[0] - v[0]).map(e => e[1]);
-    if (s.b[1] < s.a[1]) dentro.reverse();
-    const fila = [vert(s.a[0], s.a[1]), ...dentro, vert(s.b[0], s.b[1])];
-    if (verso[s.anello] < 0) fila.reverse();
-    for (let i = 0; i + 1 < fila.length; i++)
-      if (fila[i] !== fila[i + 1]) pareti.push([fila[i], fila[i + 1]]);
+    const fila = catenaLato(sc, s, verso[s.anello]);
+    for (let i = 0; i + 1 < fila.length; i++) pareti.push([fila[i], fila[i + 1]]);
   }
 
   // ogni punto del piano vale due vertici: i primi in cima, gli altri in fondo
@@ -9256,24 +9277,164 @@ function maglia(anelliP, z0, z1) {
   return { vertici, triangoli };
 }
 
+/* La base con la sede: un prisma con la faccia di sopra su due livelli.
+   Sul piano della base sta la base MENO la sede; un gradino piu' sotto, a
+   profondita' p, sta il fondo della sede. Non serve nessuna sottrazione
+   booleana: la stessa scansione pari-dispari che riempie una lettera senza
+   riconoscerne i buchi riempie il piano di sopra dagli anelli della base e
+   della sede messi insieme — la sede sta dentro la base, quindi e' un buco,
+   e i buchi delle sue lettere tornano pieni, che e' proprio il pilastrino di
+   base che resta dentro una «o».
+
+   Tre scansioni, una per faccia: base piu' sede per il piano di sopra, base
+   sola per il fondo, sede sola per il fondo dell'incavo. Da che parte guarda
+   ogni parete lo dice la prima: li' il materiale sta fuori dalla sede, e la
+   parete dell'incavo guarda dentro l'incavo come quella esterna guarda fuori
+   dal pezzo. Le tre scansioni lasciano tagli diversi sullo stesso lato — e'
+   normale, ognuna ha le sue quote — percio' la parete non e' una fila di
+   quadrati ma una striscia fra due catene, fusa come si fondono le catene
+   dei trapezi: i vertici che la faccia ha sul bordo la parete li ha tutti.
+   Il volume che deve tornare e' area(base)·hB − area(sede)·p.
+
+   Sede profonda quanto la base: e' una finestra passante, cioe' il prisma
+   normale degli anelli di base e sede insieme. */
+function magliaSede(aBase, aSede, hB, p) {
+  if (!aSede.length) return maglia(aBase, 0, hB);
+  if (p >= hB) return maglia(aBase.concat(aSede), 0, hB);
+  const A = scansione(aBase.concat(aSede)), B = scansione(aBase), C = scansione(aSede);
+  const zFondo = hB - p;
+
+  const vertici = [], chiave = new Map(), triangoli = [];
+  function v3(sc, i, z) {
+    const q = sc.punti[i];
+    const k = Math.round(q[0] * CIFRE) + ',' + Math.round(q[1] * CIFRE) + ',' + Math.round(z * CIFRE);
+    let j = chiave.get(k);
+    if (j === undefined) { j = vertici.length; vertici.push([q[0], q[1], z]); chiave.set(k, j); }
+    return j;
+  }
+  function faccia(sc, z, giu) {
+    for (const t of sc.facciaT) {
+      const a = v3(sc, t[0], z), b = v3(sc, t[1], z), c = v3(sc, t[2], z);
+      triangoli.push(giu ? [c, b, a] : [a, b, c]);
+    }
+  }
+  faccia(A, hB, false);
+  faccia(B, 0, true);
+  faccia(C, zFondo, false);
+
+  /* I lati della prima scansione sono, nell'ordine, quelli della base e poi
+     quelli della sede: lo stesso ordine con cui le altre due li elencano. */
+  const nB = B.segmenti.length;
+  A.segmenti.forEach((s, k) => {
+    const diBase = k < nB;
+    const sotto = diBase ? B : C, sS = diBase ? B.segmenti[k] : C.segmenti[k - nB];
+    const v = A.verso[s.anello];
+    const su  = catenaLato(A, s, v).map(i => v3(A, i, hB));
+    const giu = catenaLato(sotto, sS, v).map(i => v3(sotto, i, diBase ? 0 : zFondo));
+    // la posizione lungo il lato: le due catene partono dallo stesso punto del piano
+    const o = vertici[giu[0]], f = vertici[giu[giu.length - 1]];
+    const dx = f[0] - o[0], dy = f[1] - o[1];
+    const lungo = (i) => (vertici[i][0] - o[0]) * dx + (vertici[i][1] - o[1]) * dy;
+    let i = 0, j = 0;
+    while (i < giu.length - 1 || j < su.length - 1) {
+      if (j >= su.length - 1 ||
+          (i < giu.length - 1 && lungo(giu[i + 1]) <= lungo(su[j + 1]))) {
+        triangoli.push([giu[i], giu[i + 1], su[j]]); i++;
+      } else {
+        triangoli.push([giu[i], su[j + 1], su[j]]); j++;
+      }
+    }
+  });
+  return { vertici, triangoli };
+}
+
+/* ====================== la sede ====================== */
+
+/* La sede e' l'impronta della scritta, allargata di «gioco» per lato: un
+   pezzo stampato non entra in un incavo della sua stessa forma esatta, e
+   quanto gioco serva lo dice una prova stampata, non questo file — il
+   predefinito e' zero. Con piu' parti (un logo a colori) e' l'unione di
+   tutte: nella sede vanno tutti i pezzi, ognuno del suo colore.
+
+   Con una parte sola e gioco zero i contorni si prendono tali e quali, senza
+   passare da Clipper: la sede e' allora esattamente il disegno della scritta
+   e il solido non puo' divergere dagli SVG. Negli altri casi Clipper serve
+   comunque: due colori adiacenti hanno un bordo in comune, e due anelli con un
+   lato in comune manderebbero in confusione la scansione pari-dispari. */
+const S_SEDE = 10000;         // un millimetro in unita' Clipper, come S nel motore
+const TOLL_ARCO_SEDE = 0.02;  // mm, la stessa TOLL_ARCO del motore per gli archi dell'offset
+
+function sedeDi(g, gioco, quali) {
+  const parti = (g.parti || []).filter((p, i) => p.d && (!quali || quali[i] !== false)).map(p => p.d);
+  if (!parti.length) return '';
+  const gk = gioco > 0 ? gioco : 0;
+  if (parti.length === 1 && !gk) return parti[0];
+  const CL = window.ClipperLib;
+  const paths = [];
+  for (const d of parti)
+    for (const a of anelli(d))
+      paths.push(a.map(q => ({ X: Math.round(q[0] * S_SEDE), Y: Math.round(q[1] * S_SEDE) })));
+  const c = new CL.Clipper();
+  c.AddPaths(paths, CL.PolyType.ptSubject, true);
+  let unite = [];
+  // pari-dispari, la regola che gli SVG dichiarano: i buchi delle lettere restano buchi
+  c.Execute(CL.ClipType.ctUnion, unite, CL.PolyFillType.pftEvenOdd, CL.PolyFillType.pftEvenOdd);
+  if (gk) {
+    const co = new CL.ClipperOffset(2, TOLL_ARCO_SEDE * S_SEDE);
+    co.AddPaths(unite, CL.JoinType.jtRound, CL.EndType.etClosedPolygon);
+    const sol = [];
+    co.Execute(sol, gk * S_SEDE);
+    unite = sol;
+  }
+  /* Le coordinate si scrivono alla risoluzione di Clipper, un decimillesimo,
+     non ai tre decimali degli SVG. Clipper garantisce contorni semplici solo
+     sui suoi interi: un buco di una lettera che il gioco quasi richiude resta
+     una fessura larga un decimillesimo, e arrotondandola a tre cifre i suoi
+     due fianchi si incrociano. Su «Anna Rossi» in LobsterTwo a 40 mm con
+     gioco 0,2 il margine era di 0,0001 mm, e la faccia di sopra veniva fuori
+     con 58 lati aperti. */
+  return unite.map(p => 'M' + p.map(q => (q.X / S_SEDE) + ' ' + (q.Y / S_SEDE)).join('L') + 'Z').join('');
+}
+
 /* ====================== i pezzi e le loro quote ====================== */
 
 /* Quali solidi escono da una geometria, e a che altezza sta ognuno.
    Senza base (formaBase «nessuna», il caso del tessile) il dettaglio parte
    direttamente dal piatto: non c'e' niente sotto su cui appoggiarlo. */
+/* Di quanto la scritta si scosta dalla base quando escono come due pezzi.
+   Non e' una misura: e' spazio perche' sul piatto si veda subito che sono due
+   oggetti e non si tocchino. Lo slicer poi li dispone come vuole. */
+const DISTANZA_PEZZI = 10;
+
 function pezziDi(g, opz) {
   const hB = opz.altezzaBase > 0 ? opz.altezzaBase : ALTEZZA_BASE;
   const hP = opz.altezzaParte > 0 ? opz.altezzaParte : ALTEZZA_PARTE;
   const nomi = opz.nomiParti || [];
   const colori = opz.coloriParti || [];
   const pezzi = [];
-  if (g.dBase) pezzi.push({ nome: 'base', colore: opz.coloreBase, d: g.dBase, z0: 0, z1: hB });
-  const appoggio = g.dBase ? hB : 0;
-  g.parti.forEach((p, i) => pezzi.push({
-    nome: nomi[i] || (g.parti.length > 1 ? 'colore' + (i + 1) : 'scritta'),
-    colore: colori[i] || p.colore,
-    d: p.d, z0: appoggio, z1: appoggio + hP
-  }));
+  /* Quali parti vanno nella sede: tutte, se non si dice altro. Con un logo a
+     colori lo studio puo' tenerne alcune sopra la base, stampate insieme a
+     lei come sempre, e mandare a parte solo le altre. */
+  const quali = g.parti.map((p, i) => !opz.incassa || opz.incassa[i] !== false);
+  /* La sede non puo' essere piu' profonda della scritta che ci va dentro
+     (starebbe sotto il piano) ne' della base: pari alla base e' una finestra. */
+  const sede = g.dBase && opz.sede > 0 && quali.some(Boolean) ? Math.min(opz.sede, hP, hB) : 0;
+  if (g.dBase) pezzi.push({ nome: sede ? 'base con sede' : 'base', colore: opz.coloreBase,
+                            d: g.dBase, z0: 0, z1: hB,
+                            sede, dSede: sede ? sedeDi(g, opz.gioco, quali) : '' });
+  g.parti.forEach((p, i) => {
+    /* Una parte incassata non sta piu' sopra la base ma sul piatto, di
+       fianco: e' un pezzo che si stampa per conto suo. Le altre restano
+       appoggiate sopra, come sempre. */
+    const separato = !!sede && quali[i];
+    const appoggio = g.dBase && !separato ? hB : 0;
+    pezzi.push({
+      nome: nomi[i] || (g.parti.length > 1 ? 'colore' + (i + 1) : 'scritta'),
+      colore: colori[i] || p.colore,
+      d: p.d, z0: appoggio, z1: appoggio + hP,
+      scosta: separato ? g.W + DISTANZA_PEZZI : 0, separato
+    });
+  });
   return pezzi;
 }
 
@@ -9316,7 +9477,14 @@ function xmlMaglia(m, r) {
    suo ed e' proprio l'allineamento che qui si vuole dare gia' fatto.
 
    L'ordine conta: un componente puo' rimandare solo a un oggetto gia'
-   dichiarato piu' sopra. */
+   dichiarato piu' sopra.
+
+   Con la sede e' diverso: i pezzi incassati si stampano a parte, quindi
+   entrano nel piano come oggetti distinti, ognuno al suo posto sul piatto.
+   La base, con le parti che le restano sopra, e' un oggetto come prima —
+   l'insieme di componenti se sono piu' d'uno, il pezzo da solo se e' sola.
+   Verificato nello slicer il 11 settembre 2026: due oggetti separati li
+   dispone uno di fianco all'altro, come stanno nel file. */
 function modello(pezzi, nome) {
   const r = ['<?xml version="1.0" encoding="UTF-8"?>\n',
     '<model unit="millimeter" xml:lang="it-IT" xmlns="' + CORE + '">',
@@ -9332,6 +9500,22 @@ function modello(pezzi, nome) {
     xmlMaglia(p.maglia, r);
     r.push('</object>');
   });
+  const fuori = pezzi.filter(p => p.separato), dentro = pezzi.filter(p => !p.separato);
+  if (fuori.length) {
+    const id = (p) => pezzi.indexOf(p) + 2;
+    const voci = fuori.map(id);
+    if (dentro.length > 1) {
+      const insieme = pezzi.length + 2;
+      r.push('<object id="' + insieme + '" type="model" name="' + esc(nome) + '"><components>');
+      dentro.forEach(p => r.push('<component objectid="' + id(p) + '"/>'));
+      r.push('</components></object>');
+      voci.unshift(insieme);
+    } else if (dentro.length) voci.unshift(id(dentro[0]));
+    r.push('</resources><build>');
+    voci.forEach(v => r.push('<item objectid="' + v + '"/>'));
+    r.push('</build></model>\n');
+    return r.join('');
+  }
   const insieme = pezzi.length + 2;
   r.push('<object id="' + insieme + '" type="model" name="' + esc(nome) + '"><components>');
   pezzi.forEach((p, i) => r.push('<component objectid="' + (i + 2) + '"/>'));
@@ -9357,10 +9541,15 @@ const RELAZIONI =
 /* Le tre voci che stanno dentro un 3MF. */
 function voci3MF(g, opz) {
   const o = opz || {};
-  const pezzi = pezziDi(g, o).map(p => ({
-    nome: p.nome, colore: p.colore,
-    maglia: maglia(raddrizza(anelli(p.d), g.H), p.z0, p.z1)
-  })).filter(p => p.maglia.triangoli.length);
+  const tutti = pezziDi(g, o);
+  const pezzi = tutti.map(p => {
+    const an = (d) => raddrizza(anelli(d), g.H).map(a => a.map(q => [q[0] + (p.scosta || 0), q[1]]));
+    return {
+      nome: p.nome, colore: p.colore, separato: p.separato,
+      maglia: p.sede ? magliaSede(an(p.d), an(p.dSede), p.z1, p.sede)
+                     : maglia(an(p.d), p.z0, p.z1)
+    };
+  }).filter(p => p.maglia.triangoli.length);
   if (!pezzi.length) return null;
   /* [Content_Types].xml deve stare per primo dentro l'archivio: e' la regola
      dei pacchetti OPC, su cui il 3MF e' costruito. */
@@ -9383,7 +9572,7 @@ function file3MF(g, opz) {
   return b ? new Blob([b], { type: 'model/3mf' }) : null;
 }
 
-return { file3MF, byte3MF, ALTEZZA_BASE, ALTEZZA_PARTE };
+return { file3MF, byte3MF, sedeDi, ALTEZZA_BASE, ALTEZZA_PARTE };
 })();
 
 /* =====================================================================
@@ -9477,6 +9666,12 @@ const INIZIALE = {
        ALTEZZA_PARTE, che restano il ripiego per gli ordini presi prima. */
     spesBase: 3,
     spesParte: 1,
+    /* La sede incassata del solido: a 0 e' spenta e il pezzo esce montato
+       come sempre; sopra, la base esce con l'incavo della scritta e la
+       scritta a parte, da incollare. Il gioco e' di quanto la sede e' piu'
+       larga della scritta, per lato: si misura con una prova stampata. */
+    sede: 0,
+    gioco: 0,
   },
 
   /* ------------------------------------------------------------ magliette
@@ -11611,6 +11806,7 @@ function componiCfg(s, mod) {
     /* Non sono geometria, il motore le ignora: stanno nella cfg perche' l'ordine
        le porti con se' e si possano ritoccare come le altre misure. */
     spesBase: R.spesBase, spesParte: R.spesParte,
+    sede: R.sede, gioco: R.gioco,
   };
 }
 
@@ -12577,6 +12773,8 @@ const RITOCCABILI = [
      limiti dei campi dello studio. */
   ['spesBase',   'Altezza base, solo .3mf (mm)', 0.4, 30, 0.2],
   ['spesParte',  'Altezza scritta, solo .3mf (mm)', 0.2, 20, 0.2],
+  ['sede',       'Sede incassata, solo .3mf, 0 = niente (mm)', 0, 20, 0.2],
+  ['gioco',      'Gioco della sede per lato (mm)', 0, 1, 0.05],
 ];
 
 /* Il valore di un ordine, o quello del catalogo di adesso se l'ordine e'
@@ -12618,7 +12816,8 @@ const cartellaOrdine = (o) =>
 function opzioniSolido(o) {
   const s = o.scelta || {};
   return { nome: cartellaOrdine(o), coloreBase: s.coloreBase, coloriParti: [s.coloreTesto],
-           altezzaBase: valoreOrdine(o, 'spesBase'), altezzaParte: valoreOrdine(o, 'spesParte') };
+           altezzaBase: valoreOrdine(o, 'spesBase'), altezzaParte: valoreOrdine(o, 'spesParte'),
+           sede: valoreOrdine(o, 'sede'), gioco: valoreOrdine(o, 'gioco') };
 }
 
 function scaricaOrdine(numero, quali) {
@@ -12735,6 +12934,10 @@ function vistaCatalogo() {
       /* solo per il .3mf: gli SVG non hanno un'altezza. Stessi limiti dello studio */
       numero('spesBase', 'Altezza base del solido (mm)', 0.4, 30, 0.2) +
       numero('spesParte', 'Altezza scritta del solido (mm)', 0.2, 20, 0.2) +
+      /* a 0 il solido esce montato come sempre; sopra, base con l'incavo e
+         scritta a parte da incollare. Il gioco si misura con una prova. */
+      numero('sede', 'Sede incassata nel solido, 0 = niente (mm)', 0, 20, 0.2) +
+      numero('gioco', 'Gioco della sede per lato (mm)', 0, 1, 0.05) +
     '</div></div>' +
 
     '<div class="sezione"><h3>Generali</h3><div class="griglia2">' +
