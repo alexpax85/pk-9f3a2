@@ -8326,6 +8326,31 @@ function capsula(x1, y1, x2, y2, r) {
   return normalizza(p);
 }
 
+/* Dove si ferma un disco di raggio R fatto rotolare contro il pezzo lungo
+   una retta: e' il punto estremo del contorno dilatato di R su quella retta,
+   perche' un centro sul bordo del dilatato e' un disco tangente al pezzo.
+   `verticale` dice che la retta e' x = coord e si cerca la y; altrimenti e'
+   y = coord e si cerca la x. `minimo` sceglie il verso (da sinistra o
+   dall'alto contro da destra). Si guardano i segmenti che attraversano la
+   retta, non i vertici: su un lato dritto non ce ne sono. Torna null se la
+   retta non incontra il pezzo. */
+function contattoDisco(paths, R, verticale, coord, minimo) {
+  let esito = null;
+  const tieni = (v) => {
+    if (esito === null || (minimo ? v < esito : v > esito)) esito = v;
+  };
+  for (const p of dilata(paths, R)) for (let i = 0; i < p.length; i++) {
+    const a = p[i], b = p[(i + 1) % p.length];
+    const ax = a.X / S, ay = a.Y / S, bx = b.X / S, by = b.Y / S;
+    const ca = verticale ? ax : ay, cb = verticale ? bx : by;
+    if ((ca - coord) * (cb - coord) > 0) continue;       // non attraversa la retta
+    if (ca === cb) { tieni(verticale ? ay : ax); tieni(verticale ? by : bx); continue; }
+    const t = (coord - ca) / (cb - ca);
+    tieni(verticale ? ay + t * (by - ay) : ax + t * (bx - ax));
+  }
+  return esito;
+}
+
 /* Il punto del contorno piu' vicino a (px,py). Si guardano i segmenti e non i
    soli vertici: su una figura con lati dritti i vertici stanno tutti agli
    angoli, e il lato in mezzo non ne ha nemmeno uno. */
@@ -8686,11 +8711,28 @@ function costruisciDentro(cfg, opz) {
       if (n < migliore) { migliore = n; vx = x; vy = y; }
     }
 
+    /* Poi il disco si fa ROTOLARE contro il pezzo lungo l'asse, finche' lo
+       tocca davvero: il centro va sul punto piu' estremo del contorno dilatato
+       di R che sta sulla retta dell'asse, e la sovrapposizione lo affonda da
+       li'. Prima il disco si fermava all'ascissa del punto estremo trovato
+       qui sopra anche quando su quella retta il materiale stava molto piu'
+       in la': sul logo dei Metallica «a sinistra» l'estremo e' la punta bassa
+       della M, il disco restava a meta' altezza 18 mm a sinistra di qualunque
+       materiale e il collo diventava una stanghetta lunga cosi' (11 settembre
+       2026). Se la retta non incontra il pezzo (una mezzaluna col vuoto in
+       mezzo) si ripiega sull'estremo di prima, che e' sempre attaccabile. */
     let cx, cy;
-    if (cfg.posAsola === 'sinistra')    { cx = vx - R + cfg.sovrapp; cy = centroY; }
-    else if (cfg.posAsola === 'destra') { cx = vx + R - cfg.sovrapp; cy = centroY; }
-    else if (angolo)                    { cx = vx;      cy = vy - R + cfg.sovrapp; }
-    else                                { cx = centroX; cy = vy - R + cfg.sovrapp; }
+    if (cfg.posAsola === 'sinistra')    { cx = vx - R; cy = centroY; }
+    else if (cfg.posAsola === 'destra') { cx = vx + R; cy = centroY; }
+    else if (angolo)                    { cx = vx;     cy = vy - R; }
+    else                                { cx = centroX; cy = vy - R; }
+    const laterale = cfg.posAsola === 'sinistra' || cfg.posAsola === 'destra';
+    const tocco = contattoDisco(pBase, R, !laterale, laterale ? cy : cx,
+                                cfg.posAsola !== 'destra');
+    if (tocco !== null) { if (laterale) cx = tocco; else cy = tocco; }
+    if (cfg.posAsola === 'destra') cx -= cfg.sovrapp;
+    else if (laterale) cx += cfg.sovrapp;
+    else cy += cfg.sovrapp;
     cx += cfg.asolaX;
     cy += cfg.asolaY;
 
