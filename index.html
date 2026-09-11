@@ -134,7 +134,7 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   font-size: 11px; font-weight: 600; letter-spacing: .22em;
   color: var(--neon-scuro); pointer-events: none;
 }
-body[data-tipo="maglietta"] #scena::before { display: none; }
+body[data-tipo="maglietta"] #scena::before, body[data-tipo="barattolo"] #scena::before { display: none; }
 #scena svg { max-width: 92%; max-height: 92%; display: block; }
 #vuoto { color: var(--carta-tenue); font-size: 15px; text-align: center; padding: 0 24px; }
 
@@ -420,7 +420,10 @@ body[data-tipo="maglietta"] #scena::before { display: none; }
 
 /* Un capo intero chiede piu' aria di una targhetta: senza, la maglietta
    viene alta un pollice e la scritta dentro non si legge. */
-body[data-tipo="maglietta"] #scena { flex: 0 0 46vh; }
+body[data-tipo="maglietta"] #scena, body[data-tipo="barattolo"] #scena { flex: 0 0 46vh; }
+/* il barattolo e' alto e stretto: si lascia respirare in altezza come il capo */
+#barattolo { width: 100%; height: 100%; display: block; }
+.rigaTaglia { border: 1px solid var(--linea); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
 #capo { width: 100%; height: 100%; display: block; }
 #capo .grafica { cursor: grab; }
 
@@ -510,6 +513,7 @@ body[data-tipo="maglietta"] #scena { flex: 0 0 46vh; }
   <div id="opTipo">
     <button type="button" class="opTipo" data-optipo="portachiavi" aria-pressed="true">Portachiavi</button>
     <button type="button" class="opTipo" data-optipo="maglietta" aria-pressed="false">Magliette</button>
+    <button type="button" class="opTipo" data-optipo="barattolo" aria-pressed="false">Barattoli</button>
   </div>
   <div id="opSchede" hidden>
     <button type="button" class="opScheda" data-op="ordini"   aria-selected="true">Ordini</button>
@@ -9757,6 +9761,33 @@ const INIZIALE = {
       tolleranzaCurva: 0,
     },
   },
+
+  /* ------------------------------------------------------------ barattoli
+     La terza porta. La stampa e' quella delle magliette (vinile o carta e
+     pressa), e infatti colori di stampa, caratteri e regole si prendono da
+     `magliette`: qui c'e' solo quello che e' del barattolo. Le misure sono
+     quelle date l'11 settembre 2026 per i due barattoli di latta bianchi:
+     altezza e diametro del barattolo, e l'area di stampa, che sta al centro
+     (12 mm sopra e sotto su tutt'e due). I prezzi sono un punto di
+     partenza da sistemare dal catalogo: qui il prezzo e' per barattolo,
+     stampa compresa, e non cambia col numero di colori. */
+  barattoli: {
+    taglie: [
+      { id: 'piccolo', nome: 'Piccolo', altezza: 119, diametro: 99,
+        areaAltezza: 95, areaLarghezza: 90, prezzo: 10 },
+      { id: 'grande',  nome: 'Grande',  altezza: 149, diametro: 99,
+        areaAltezza: 125, areaLarghezza: 90, prezzo: 14 },
+    ],
+    /* Solo per l'anteprima, come i colori delle magliette. */
+    coloriBarattolo: [
+      { nome: 'Bianco',          hex: '#f4f4f0' },
+      { nome: 'Nero',            hex: '#1a1a1a' },
+      { nome: 'Rosso',           hex: '#b32430' },
+      { nome: 'Blu navy',        hex: '#1f2a44' },
+      { nome: 'Verde bottiglia', hex: '#1f4d3a' },
+      { nome: 'Sabbia',          hex: '#ded3bd' },
+    ],
+  },
 };
 
 /* Fonde il salvato sopra ai valori iniziali: se domani aggiungo una regola,
@@ -9777,8 +9808,13 @@ function fondi(salvato) {
       Object.assign(c.magliette, m);
       c.magliette.regole = Object.assign(reg, m.regole || {});
     }
+    else if (k === 'barattoli') Object.assign(c.barattoli, salvato.barattoli || {});
     else c[k] = salvato[k];
   }
+  const Bc = c.barattoli;
+  if (!Array.isArray(Bc.taglie) || !Bc.taglie.length) Bc.taglie = clona(INIZIALE.barattoli.taglie);
+  if (!Array.isArray(Bc.coloriBarattolo) || !Bc.coloriBarattolo.length)
+    Bc.coloriBarattolo = clona(INIZIALE.barattoli.coloriBarattolo);
   const M = c.magliette;
   if (!Array.isArray(M.coloriStampa) || !M.coloriStampa.length)
     M.coloriStampa = clona(INIZIALE.magliette.coloriStampa);
@@ -9819,7 +9855,7 @@ const STATI = ['da controllare', 'pronto', 'fatto'];
 /* Che cosa e' stato ordinato. Finche' si faceva una cosa sola non c'era
    motivo di scriverlo, quindi gli ordini presi prima delle magliette il tipo
    non ce l'hanno: si rileggono come portachiavi, senza riscrivere niente. */
-const TIPI = ['portachiavi', 'maglietta'];
+const TIPI = ['portachiavi', 'maglietta', 'barattolo'];
 
 function leggiOrdini() {
   try {
@@ -9873,8 +9909,9 @@ function eliminaOrdine(numero) {
    scrive solo la 2: una copia vecchia deve poter entrare sempre, mentre una
    copia nuova non deve finire in una versione che le magliette non le sa
    nemmeno disegnare. */
-const FORMATO = 'portachiavi3d/2';
-const FORMATI_LETTI = ['portachiavi3d/1', 'portachiavi3d/2'];
+/* E sale a 3 con i barattoli, per la stessa ragione. */
+const FORMATO = 'portachiavi3d/3';
+const FORMATI_LETTI = ['portachiavi3d/1', 'portachiavi3d/2', 'portachiavi3d/3'];
 
 function esporta() {
   return JSON.stringify({
@@ -10308,9 +10345,10 @@ const TOLL_PROVA = 0.08;
 const TOLL_ARCHI = 0.25;
 const PROVA = { saltaSpessore: true, tolleranzaCurva: TOLL_PROVA, tolleranzaArco: TOLL_ARCHI };
 
-/* Le quattro forme che puo' prendere il secondo colore. La prima non e' un
-   secondo colore affatto: e' la scritta e basta. Sotto ognuna c'e' una forma
-   che il motore sa gia' fare, quindi qui non si inventa geometria nuova. */
+/* Le forme che poteva prendere il secondo colore. Dall'11 settembre 2026 al
+   cliente si offre SOLO la prima, la scritta e basta, a un colore: le altre
+   restano qui perche' gli ordini presi prima le portano scritte in `sfondo`
+   e vanno ancora letti, contati e ricostruiti come allora. */
 const SFONDI = {
   'niente':     { titolo: 'Solo la scritta', formaBase: 'nessuna',    colori: 1 },
   'bordo':      { titolo: 'Bordo attorno',   formaBase: 'contorno',   colori: 2 },
@@ -10631,7 +10669,7 @@ const esc = (s) => String(s == null ? '' : s)
 const PASSI = [
   { id: 'capo',      titolo: 'La maglietta',   guida: 'Di che colore è, e dove stampiamo.' },
   { id: 'testo',     titolo: 'La scritta',     guida: 'Scrivi quello che vuoi. Puoi andare a capo.' },
-  { id: 'colori',    titolo: 'I colori',       guida: 'Com’è fatta la scritta.' },
+  { id: 'colori',    titolo: 'Il colore',      guida: 'Di che colore è la scritta.' },
   { id: 'posizione', titolo: 'Misura e posto', guida: 'Quanto grande, e dove sulla maglietta.' },
   { id: 'fine',      titolo: 'Fatto',          guida: '' },
 ];
@@ -10675,7 +10713,7 @@ function rileggiCatalogo(nuovoCat) {
     if (!ci(M.coloriStampa, L.coloreSfondo))
       L.coloreSfondo = (M.coloriStampa[1] || M.coloriStampa[0]).hex;
     L.larghezzaVoluta = Math.min(R.maxLarghezza, Math.max(10, L.larghezzaVoluta));
-    L.bordo = Math.min(R.bordoMax, Math.max(R.bordoMin, L.bordo));
+    L.sfondo = 'niente';          // il secondo colore non si offre piu'
   }
   calcolo = {};
   aggiorna();
@@ -10801,41 +10839,18 @@ function pannelloTesto() {
 const primaRiga = (t) =>
   String(t || '').split('\n').map(r => r.trim()).filter(Boolean)[0] || '';
 
+/* Un colore solo, quello della scritta: le forme del secondo colore (bordo,
+   riquadro, ovale, tondo) e il suo spessore non si offrono piu' dall'11
+   settembre 2026. */
 function pannelloColori() {
-  const L = attivo(), M = cat.magliette, R = M.regole;
-  const forme = '<div class="sezione"><h3>Com’è fatta</h3><div class="scelte">' +
-    Object.keys(T.SFONDI).map(k =>
-      '<button type="button" class="scelta" data-sfondo="' + k + '" ' +
-      'aria-pressed="' + (k === L.sfondo) + '">' +
-      '<span class="titolo cresci">' + esc(T.SFONDI[k].titolo) + '</span>' +
-      '<span class="sotto">' + (T.SFONDI[k].colori === 1 ? 'un colore' : 'due colori') +
-      '</span></button>').join('') + '</div></div>';
-
-  const unColore = T.SFONDI[L.sfondo].colori === 1;
-  const spessore = unColore ? '' :
-    '<div class="sezione"><h3>Quanto spesso</h3>' +
-    '<div class="cursore"><span class="capo">sottile</span>' +
-    '<input type="range" id="bordoM" min="' + R.bordoMin + '" max="' + R.bordoMax +
-      '" step="0.5" value="' + L.bordo + '">' +
-    '<span class="capo">grosso</span>' +
-    '<input type="number" id="bordoMN" min="' + R.bordoMin + '" max="' + R.bordoMax +
-      '" step="0.5" value="' + L.bordo + '"><span class="unita">mm</span></div></div>';
-
-  const tavolozza = (chiave, titolo, spento) =>
-    '<div class="sezione"><h3>' + titolo + '</h3><div class="scelte colori">' +
-    M.coloriStampa.map(c => {
-      const via = spento === c.hex;
-      return '<button type="button" class="scelta" data-colorem="' + chiave + '" ' +
-        'data-hex="' + esc(c.hex) + '" aria-pressed="' + (c.hex === L[chiave]) + '" ' +
-        (via ? 'disabled ' : '') + '>' +
-        '<span class="gocciola" style="background:' + esc(c.hex) + '"></span>' +
-        '<span class="titolo">' + esc(c.nome) + '</span>' +
-        (via ? '<span class="motivo">già usato per l’altro</span>' : '') + '</button>';
-    }).join('') + '</div></div>';
-
-  return testa(2) + forme + spessore +
-    tavolozza('coloreTesto', 'Colore della scritta', unColore ? null : L.coloreSfondo) +
-    (unColore ? '' : tavolozza('coloreSfondo', 'Colore sfondo', L.coloreTesto));
+  const L = attivo(), M = cat.magliette;
+  const tavolozza = '<div class="sezione"><h3>Colore della scritta</h3><div class="scelte colori">' +
+    M.coloriStampa.map(c =>
+      '<button type="button" class="scelta" data-colorem="coloreTesto" ' +
+      'data-hex="' + esc(c.hex) + '" aria-pressed="' + (c.hex === L.coloreTesto) + '">' +
+      '<span class="gocciola" style="background:' + esc(c.hex) + '"></span>' +
+      '<span class="titolo">' + esc(c.nome) + '</span></button>').join('') + '</div></div>';
+  return testa(2) + tavolozza;
 }
 
 function pannelloPosizione() {
@@ -11011,13 +11026,7 @@ function tocco(b) {
   }
   else if (b.dataset.maglia) { scelta.coloreMaglia = b.dataset.maglia; geometria = false; }
   else if (b.dataset.fontm) L.fontId = b.dataset.fontm;
-  else if (b.dataset.sfondo) L.sfondo = b.dataset.sfondo;
-  else if (b.dataset.colorem) {
-    L[b.dataset.colorem] = b.dataset.hex;
-    /* Il colore cambia il numero di colori solo quando i due coincidono, e
-       quello cambia il prezzo: conviene rifare il conto. */
-    geometria = false;
-  }
+  else if (b.dataset.colorem) { L[b.dataset.colorem] = b.dataset.hex; geometria = false; }
   else return false;
 
   if (geometria) aggiorna();
@@ -11057,7 +11066,6 @@ function collega(passo, ridisegno) {
     }
   }
 
-  if (id === 'colori') collegaCursore('#bordoM', '#bordoMN', (v) => { attivo().bordo = v; });
   if (id === 'posizione') collegaCursore('#largM', '#largMN', (v) => { attivo().larghezzaVoluta = v; });
   // il toggle dei lati sta sull'anteprima e serve in ogni passo
   collegaTrascinamento();
@@ -11459,9 +11467,6 @@ function vistaCatalogo(c) {
     '<div class="griglia2">' +
       num('maxLarghezza', 'Larghezza massima (mm)', 50, 1000, 10) +
       num('maxAltezza', 'Altezza massima (mm)', 50, 1000, 10) +
-      num('bordo', 'Bordo di partenza (mm)', 0.5, 40, 0.5) +
-      num('bordoMin', 'Bordo minimo (mm)', 0.5, 40, 0.5) +
-      num('bordoMax', 'Bordo massimo (mm)', 0.5, 60, 0.5) +
       num('interlineaRel', 'Interlinea (parte di una riga)', 0, 2, 0.05) +
       num('latoRiferimento', 'Riferimenti agli angoli (mm, 0 = niente)', 0, 10, 0.5) +
     '</div>' +
@@ -11649,6 +11654,784 @@ return { PASSI, avvia, rileggiCatalogo, aggiorna, pannello, collega, tocco,
 })();
 
 /* =====================================================================
+   Portachiavi 3D — il barattolo: dov'e' l'area di stampa, e come si disegna
+   Il fratello di capo.js per il barattolo di latta. Le misure pero' non
+   stanno qui: sono nel catalogo (cat.barattoli.taglie), perche' le taglie
+   sono oggetti diversi che l'operatore puo' cambiare. Qui c'e' quello che
+   vale per tutte: dove sta l'area di stampa, dove finisce la scritta, e il
+   disegno che si mostra al cliente.
+   ===================================================================== */
+window.Barattolo = (function () {
+'use strict';
+
+const esc = (s) => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const r2 = (v) => Math.round(v * 100) / 100;
+
+/* L'area di stampa sta al centro del barattolo, in altezza e in larghezza.
+   Non e' una scelta di questo file: sono le misure date (11 settembre 2026)
+   e tornano da sole — sul piccolo 119 alto e area 95, sul grande 149 e 125,
+   cioe' 12 mm sopra e 12 sotto in tutt'e due i casi; la fascia da 90 sta in
+   mezzo ai 99 del diametro. */
+function area(t) {
+  return {
+    x: (t.diametro - t.areaLarghezza) / 2,
+    y: (t.altezza - t.areaAltezza) / 2,
+    largo: t.areaLarghezza,
+    alto: t.areaAltezza,
+  };
+}
+
+/* Dove finisce la scritta: al centro dell'area. Il cliente decide solo
+   quanto e' grande, non dove sta. */
+function posto(t, g) {
+  const a = area(t);
+  return { x: a.x + (a.largo - g.W) / 2, y: a.y + (a.alto - g.H) / 2 };
+}
+
+/* --------------------------------------------------------------- disegno */
+
+/* Quanto e' alta la fascia di metallo in cima e in fondo, e quanto si
+   schiaccia la bocca vista un po' dall'alto. Sono presi a occhio dalle foto
+   del barattolo e servono SOLO al disegno: non entrano in nessun file. */
+const FASCIA_METALLO = 3;
+const PROSPETTIVA = 0.07;
+
+/* Quanto e' chiaro un colore, da 0 a 1, pesando i canali come fa l'occhio. */
+function luminanza(hex) {
+  const n = parseInt(String(hex || '#888888').slice(1), 16);
+  return (0.2126 * (n >> 16 & 255) + 0.7152 * (n >> 8 & 255) + 0.0722 * (n & 255)) / 255;
+}
+
+function scurisci(hex, k) {
+  const n = parseInt(String(hex || '#888888').slice(1), 16);
+  const f = (v) => Math.max(0, Math.round(v * (1 - k)));
+  return '#' + [f(n >> 16 & 255), f(n >> 8 & 255), f(n & 255)]
+    .map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+/* Il barattolo visto di fronte, con l'area di stampa e la scritta al suo
+   posto. Prende tutto per argomento perche' serve in due momenti diversi:
+   il cliente che sta scegliendo, e l'operatore che riapre un ordine.
+   `t` porta altezza, diametro e area; `g` e' la geometria del motore, o
+   niente se non c'e' ancora scritto nulla; `L` ha i colori della scritta. */
+function svg(t, colore, g, L) {
+  const D = t.diametro, H = t.altezza, a = area(t);
+  const M = FASCIA_METALLO, ry = r2(D * PROSPETTIVA);
+  /* Il tratteggio dell'area deve vedersi su qualunque tinta: scuro sui
+     barattoli chiari, bianco su quelli scuri (sul blu navy uno scuro sparisce). */
+  const tratto = luminanza(colore) > 0.5 ? scurisci(colore, 0.42) : '#ffffff';
+
+  /* Il corpo e' un cilindro: chiaro dove prende luce, scuro ai fianchi. Si
+     fa con un velo sopra al colore vero, cosi' vale per qualunque tinta del
+     catalogo senza calcolare niente. */
+  let s = '<defs>' +
+    '<filter id="ombraBar" x="-10%" y="-10%" width="120%" height="125%">' +
+    '<feDropShadow dx="0" dy="5" stdDeviation="5" flood-opacity=".22"/></filter>' +
+    '<linearGradient id="veloBar" x1="0" x2="1" y1="0" y2="0">' +
+    '<stop offset="0" stop-color="#000" stop-opacity=".30"/>' +
+    '<stop offset=".14" stop-color="#000" stop-opacity=".05"/>' +
+    '<stop offset=".32" stop-color="#fff" stop-opacity=".16"/>' +
+    '<stop offset=".5" stop-color="#fff" stop-opacity=".04"/>' +
+    '<stop offset=".8" stop-color="#000" stop-opacity=".06"/>' +
+    '<stop offset="1" stop-color="#000" stop-opacity=".34"/></linearGradient>' +
+    '<linearGradient id="metalloBar" x1="0" x2="1" y1="0" y2="0">' +
+    '<stop offset="0" stop-color="#8f8f8f"/><stop offset=".15" stop-color="#e6e6e6"/>' +
+    '<stop offset=".35" stop-color="#ffffff"/><stop offset=".55" stop-color="#cfcfcf"/>' +
+    '<stop offset=".8" stop-color="#9a9a9a"/><stop offset="1" stop-color="#7a7a7a"/>' +
+    '</linearGradient></defs>';
+
+  s += '<g filter="url(#ombraBar)">' +
+    // il fondo: la meta' bassa di un'ellisse, di metallo
+    '<path d="M0 ' + H + 'A' + D / 2 + ' ' + ry + ' 0 0 0 ' + D + ' ' + H + 'Z" fill="url(#metalloBar)"/>' +
+    '<rect x="0" y="0" width="' + D + '" height="' + H + '" fill="' + esc(colore) + '"/>' +
+    '<rect x="0" y="0" width="' + D + '" height="' + H + '" fill="url(#veloBar)"/>' +
+    '<rect x="0" y="0" width="' + D + '" height="' + M + '" fill="url(#metalloBar)"/>' +
+    '<rect x="0" y="' + (H - M) + '" width="' + D + '" height="' + M + '" fill="url(#metalloBar)"/>' +
+    // la bocca, vista un po' dall'alto: il bordo e il dentro
+    '<ellipse cx="' + D / 2 + '" cy="0" rx="' + D / 2 + '" ry="' + ry + '" fill="url(#metalloBar)" ' +
+      'stroke="#8a8a8a" stroke-width=".5"/>' +
+    '<ellipse cx="' + D / 2 + '" cy="0" rx="' + r2(D / 2 - 2.5) + '" ry="' + r2(Math.max(0.5, ry - 1.2)) +
+      '" fill="#cfcfcf"/>' +
+    '</g>';
+
+  /* L'area di stampa si vede sempre, anche prima che ci sia scritto
+     qualcosa: dice quanto spazio c'e', e a che cosa serve la scala. */
+  s += '<rect x="' + r2(a.x) + '" y="' + r2(a.y) + '" width="' + a.largo + '" height="' + a.alto +
+    '" fill="#ffffff" fill-opacity=".10" stroke="' + tratto + '" stroke-opacity=".7" ' +
+    'stroke-width="1.2" stroke-dasharray="5 3.5"/>';
+
+  if (g) {
+    const p = posto(t, g);
+    s += '<g class="grafica" transform="translate(' + r2(p.x) + ' ' + r2(p.y) + ')">';
+    if (g.dBase)
+      s += '<path d="' + g.dBase + '" fill="' + esc(L.coloreSfondo) + '" fill-rule="evenodd"/>';
+    g.parti.forEach(pz => {
+      s += '<path d="' + pz.d + '" fill="' + esc(L.coloreTesto) + '" fill-rule="evenodd"/>';
+    });
+    s += '</g>';
+  }
+
+  const m = 14;
+  return '<svg id="barattolo" viewBox="' + (-m) + ' ' + (-m) + ' ' + (D + 2 * m) + ' ' +
+    (H + 2 * m) + '">' + s + '</svg>';
+}
+
+return { area, posto, svg, scurisci, FASCIA_METALLO };
+})();
+
+/* =====================================================================
+   Portachiavi 3D — il flusso dei barattoli, dalla parte del cliente
+   La terza porta del chiosco. Ricalca magliette.js passo per passo, con
+   quello che cambia: un lato solo, due taglie con la loro area di stampa,
+   la scritta sempre al centro (si sceglie solo quanto e' grande) e il
+   prezzo che va per taglia, barattolo compreso.
+
+   La geometria e i file sono quelli del tessile: la stampa e' la stessa
+   (vinile o carta e pressa), cambia solo l'oggetto sotto. Tessile legge
+   tutto da cat.magliette — colori di stampa, caratteri, regole, letto
+   della pressa — e qui vale tutto uguale tranne il letto, che e' l'area
+   della taglia scelta: gli si porge un catalogo travestito, con quell'area
+   al posto del letto. Cosi' tessile.js non cambia e le magliette non
+   possono accorgersi di niente.
+   ===================================================================== */
+window.Barattoli = (function () {
+'use strict';
+
+const T = window.Tessile;
+const B = window.Barattolo;
+const D = window.Dati;
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+const esc = (s) => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+const PASSI = [
+  { id: 'barattolo', titolo: 'Il barattolo',  guida: 'Quale taglia, e di che colore.' },
+  { id: 'testo',     titolo: 'La scritta',    guida: 'Scrivi quello che vuoi. Puoi andare a capo.' },
+  { id: 'colori',    titolo: 'Il colore',     guida: 'Di che colore è la scritta.' },
+  { id: 'misura',    titolo: 'Quanto grande', guida: 'La scritta sta al centro dell’area di stampa.' },
+  { id: 'fine',      titolo: 'Fatto',         guida: '' },
+];
+
+/* Stesse tolleranze dell'anteprima delle magliette: alta pochi centimetri
+   sullo schermo, la differenza non si vede. Il pezzo che finisce nell'ordine
+   si costruisce alla precisione piena, una volta sola, alla conferma. */
+const BOZZA = { saltaSpessore: true, tolleranzaCurva: 0.15, tolleranzaArco: 0.3 };
+
+/* ------------------------------------------------------------- lo stato */
+
+let cat = null, scelta = null, calcolo = null;
+let attesa = null, ganci = {}, passoCorrente = 0;
+
+/* Il catalogo travestito da magliette, con l'area della taglia al posto del
+   letto della pressa: e' l'unica cosa che Tessile deve sapere in piu'. */
+function comeMaglietta(c, t) {
+  const M = c.magliette;
+  return {
+    magliette: Object.assign({}, M, {
+      regole: Object.assign({}, M.regole, { maxLarghezza: t.areaLarghezza, maxAltezza: t.areaAltezza }),
+    }),
+    valuta: c.valuta, mostraPrezzi: c.mostraPrezzi,
+  };
+}
+const taglie = (c) => (c || cat).barattoli.taglie;
+const tagliaDi = (c, id) => taglie(c).find(t => t.id === id) || taglie(c)[0];
+const taglia = () => tagliaDi(cat, scelta.taglia);
+
+function avvia(nuovoCat, g) {
+  cat = nuovoCat;
+  if (g) ganci = g;
+  const t = taglie(cat)[0];
+  scelta = {
+    taglia: t.id,
+    coloreBarattolo: (cat.barattoli.coloriBarattolo[0] || {}).hex,
+    fronte: T.sceltaLatoIniziale(comeMaglietta(cat, t)),
+  };
+  calcolo = null;
+}
+
+/* Il catalogo puo' essere cambiato mentre l'operatore era dentro: quello che
+   il cliente aveva scelto potrebbe non esserci piu'. */
+function rileggiCatalogo(nuovoCat) {
+  cat = nuovoCat;
+  const M = cat.magliette, Bc = cat.barattoli;
+  const ci = (elenco, hex) => elenco.some(c => c.hex === hex);
+  if (!taglie(cat).some(t => t.id === scelta.taglia)) scelta.taglia = taglie(cat)[0].id;
+  if (!ci(Bc.coloriBarattolo, scelta.coloreBarattolo)) scelta.coloreBarattolo = Bc.coloriBarattolo[0].hex;
+  const L = scelta.fronte;
+  if (!M.font.includes(L.fontId)) L.fontId = M.font[0];
+  if (!ci(M.coloriStampa, L.coloreTesto)) L.coloreTesto = M.coloriStampa[0].hex;
+  if (!ci(M.coloriStampa, L.coloreSfondo))
+    L.coloreSfondo = (M.coloriStampa[1] || M.coloriStampa[0]).hex;
+  L.larghezzaVoluta = Math.min(taglia().areaLarghezza, Math.max(10, L.larghezzaVoluta));
+  L.sfondo = 'niente';          // il secondo colore non si offre piu'
+  calcolo = null;
+  aggiorna();
+}
+
+/* ---------------------------------------------------------- il calcolo */
+
+const haTesto = () => T.quanteRighe(scelta.fronte.testo) > 0;
+
+/* Rifa' il conto. Con la casella ancora vuota non si calcola: darebbe un
+   errore annunciato, e il cliente non ha finito di scrivere. */
+function aggiorna(opz) {
+  if (!scelta) return;
+  calcolo = haTesto() ? T.adattaAlRiquadro(scelta.fronte, comeMaglietta(cat, taglia()), opz || BOZZA)
+                      : null;
+}
+
+function fraPoco(quando) {
+  clearTimeout(attesa);
+  attesa = setTimeout(() => { aggiorna(); ridisegna(); }, quando === undefined ? 260 : quando);
+}
+
+function ridisegna() {
+  if (ganci.disegna) ganci.disegna();
+  if (ganci.aggiornaFondo) ganci.aggiornaFondo();
+  const i = $('#ingombro');
+  if (i) i.textContent = calcolo && !calcolo.errore && calcolo.g ? quantoVienGrande(calcolo.g) : '';
+}
+
+/* ------------------------------------------------------------ i pannelli */
+
+const testa = (n) => '<h2>' + esc(PASSI[n].titolo) + '</h2>' +
+  '<p class="guida">' + esc(PASSI[n].guida) + '</p>';
+
+const primaRiga = (t) =>
+  String(t || '').split('\n').map(r => r.trim()).filter(Boolean)[0] || '';
+const riassunto = (sc) =>
+  String((sc || scelta).fronte.testo).split('\n').map(r => r.trim()).filter(Boolean).join(' · ');
+const numero = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
+const quantoVienGrande = (g) => 'Viene ' + numero(g.W) + ' × ' + numero(g.H) + ' mm';
+const prezzoScritto = (v) => cat.valuta + ' ' + Number(v).toFixed(2).replace('.', ',');
+
+/* La taglia per prima, perche' cambia l'area di stampa e con lei tutto il
+   resto; poi il colore, che cambia solo l'anteprima. */
+function pannelloBarattolo() {
+  const Bc = cat.barattoli;
+  const misure = '<div class="sezione"><h3>La taglia</h3>' +
+    '<div class="scelte">' + taglie(cat).map(t =>
+      '<button type="button" class="scelta" data-taglia="' + esc(t.id) + '" ' +
+      'aria-pressed="' + (t.id === scelta.taglia) + '">' +
+      '<span class="titolo cresci">' + esc(t.nome) + '</span>' +
+      '<span class="sotto">alto ' + numero(t.altezza) + ' mm, largo ' + numero(t.diametro) +
+      (cat.mostraPrezzi && t.prezzo != null ? ' · ' + esc(prezzoScritto(t.prezzo)) : '') +
+      '</span></button>').join('') + '</div></div>';
+
+  const colori = '<div class="sezione"><h3>Il colore del barattolo</h3>' +
+    '<div class="scelte colori">' + Bc.coloriBarattolo.map(c =>
+      '<button type="button" class="scelta" data-barattolo="' + esc(c.hex) + '" ' +
+      'aria-pressed="' + (c.hex === scelta.coloreBarattolo) + '">' +
+      '<span class="gocciola" style="background:' + esc(c.hex) + '"></span>' +
+      '<span class="titolo">' + esc(c.nome) + '</span></button>').join('') + '</div></div>';
+
+  return testa(0) + misure + colori;
+}
+
+function pannelloTesto() {
+  const L = scelta.fronte, M = cat.magliette;
+  const righe = T.quanteRighe(L.testo);
+  const campo = '<div class="sezione">' +
+    '<textarea id="testoBarattolo" rows="3" autocapitalize="words" spellcheck="false" ' +
+    'placeholder="La tua scritta&#10;anche su più righe">' + esc(L.testo) + '</textarea>' +
+    '<div id="contatore">' + (righe > 1 ? righe + ' righe' : '') + '</div></div>';
+
+  const font = '<div class="sezione"><h3>Il carattere</h3><div class="scelte">' +
+    M.font.filter(id => FONT_DATA[id]).map(id =>
+      '<button type="button" class="scelta" data-fontb="' + esc(id) + '" ' +
+      'aria-pressed="' + (id === L.fontId) + '">' +
+      '<span class="campione" style="font-family:\'pk-' + esc(id) + '\'">' +
+      esc(primaRiga(L.testo) || 'Scritta') + '</span>' +
+      '<span class="sotto">' + esc(FONT_DATA[id].nome) + '</span></button>').join('') +
+    '</div></div>';
+
+  return testa(1) + campo + font;
+}
+
+/* Un colore solo, quello della scritta: come per le magliette, le forme del
+   secondo colore non si offrono. */
+function pannelloColori() {
+  const L = scelta.fronte, M = cat.magliette;
+  const tavolozza = '<div class="sezione"><h3>Colore della scritta</h3><div class="scelte colori">' +
+    M.coloriStampa.map(c =>
+      '<button type="button" class="scelta" data-coloreb="coloreTesto" ' +
+      'data-hex="' + esc(c.hex) + '" aria-pressed="' + (c.hex === L.coloreTesto) + '">' +
+      '<span class="gocciola" style="background:' + esc(c.hex) + '"></span>' +
+      '<span class="titolo">' + esc(c.nome) + '</span></button>').join('') + '</div></div>';
+  return testa(2) + tavolozza;
+}
+
+function pannelloMisura() {
+  const L = scelta.fronte, t = taglia();
+  const g = (calcolo || {}).g;
+  const misura = '<div class="sezione"><h3>Quanto grande</h3>' +
+    '<div class="cursore"><span class="capo">piccola</span>' +
+    '<input type="range" id="largB" min="20" max="' + t.areaLarghezza + '" step="5" ' +
+      'value="' + L.larghezzaVoluta + '">' +
+    '<span class="capo">grande</span>' +
+    '<input type="number" id="largBN" min="20" max="' + t.areaLarghezza + '" step="5" ' +
+      'value="' + L.larghezzaVoluta + '"><span class="unita">mm</span></div>' +
+    '<p class="sotto" id="ingombro">' + (g ? esc(quantoVienGrande(g)) : '') + '</p></div>';
+  const dove = '<div class="sezione"><h3>Dove</h3>' +
+    '<p>Al centro dell’area di stampa, che sul barattolo ' + esc(t.nome.toLowerCase()) +
+    ' è alta ' + numero(t.areaAltezza) + ' mm e larga ' + numero(t.areaLarghezza) +
+    '. Il riquadro tratteggiato nell’anteprima è proprio quello.</p></div>';
+  return testa(3) + misura + dove;
+}
+
+function pannello(passo) {
+  const id = PASSI[passo].id;
+  if (id === 'barattolo') return pannelloBarattolo();
+  if (id === 'testo')     return pannelloTesto();
+  if (id === 'colori')    return pannelloColori();
+  if (id === 'misura')    return pannelloMisura();
+  return '';
+}
+
+/* -------------------------------------------------------------- la scena */
+
+/* Il barattolo si vede da subito, anche vuoto: e' la cosa che si sta
+   personalizzando. */
+function scena() {
+  if (!scelta) return '';
+  if (calcolo && calcolo.errore) return '<div id="vuoto">' + esc(calcolo.errore) + '</div>';
+  return B.svg(taglia(), scelta.coloreBarattolo, calcolo && calcolo.g ? calcolo.g : null, scelta.fronte);
+}
+
+/* ------------------------------------------------------------- i tocchi */
+
+function tocco(b) {
+  const L = scelta.fronte;
+  let geometria = true;
+  if (b.dataset.taglia) {
+    scelta.taglia = b.dataset.taglia;
+    // l'area cambia: una scritta larga quanto l'area vecchia va rimessa dentro
+    L.larghezzaVoluta = Math.min(taglia().areaLarghezza, L.larghezzaVoluta);
+  }
+  else if (b.dataset.barattolo) { scelta.coloreBarattolo = b.dataset.barattolo; geometria = false; }
+  else if (b.dataset.fontb) L.fontId = b.dataset.fontb;
+  else if (b.dataset.coloreb) { L[b.dataset.coloreb] = b.dataset.hex; geometria = false; }
+  else return false;
+
+  if (geometria) aggiorna();
+  if (ganci.disegnaPannello) ganci.disegnaPannello();
+  ridisegna();
+  return true;
+}
+
+/* Aggancia casella e cursori, che mandano `input` e non `click`. Il fuoco
+   sulla casella solo arrivando al passo, per la stessa ragione delle
+   magliette: ogni scelta ridisegna il pannello, e rimettere il fuoco
+   tirerebbe la casella in vista sotto la tastiera. */
+function collega(passo, ridisegno) {
+  passoCorrente = passo;
+  const id = PASSI[passo].id;
+  if (id === 'testo') {
+    const campo = $('#testoBarattolo');
+    if (campo) {
+      campo.addEventListener('input', () => {
+        scelta.fronte.testo = campo.value;
+        const righe = T.quanteRighe(campo.value);
+        const c = $('#contatore');
+        if (c) c.textContent = righe > 1 ? righe + ' righe' : '';
+        $$('.scelta[data-fontb] .campione').forEach(el => {
+          el.textContent = primaRiga(campo.value) || 'Scritta';
+        });
+        fraPoco();
+      });
+      if (!ridisegno) setTimeout(() => campo.focus(), 60);
+    }
+  }
+  if (id === 'misura') collegaCursore('#largB', '#largBN', (v) => { scelta.fronte.larghezzaVoluta = v; });
+}
+
+function collegaCursore(quale, quale2, metti) {
+  const r = $(quale), n = $(quale2);
+  if (!r) return;
+  const cambia = (v) => {
+    const x = Math.min(Number(r.max), Math.max(Number(r.min), Number(v) || 0));
+    metti(x);
+    r.value = x; n.value = x;
+    fraPoco(140);
+  };
+  r.addEventListener('input', () => cambia(r.value));
+  n.addEventListener('input', () => cambia(n.value));
+}
+
+/* ------------------------------------------------------- avanti o no */
+
+function blocco(passo) {
+  const id = PASSI[passo].id;
+  if (id === 'barattolo' || id === 'fine') return '';
+  if (!haTesto()) return 'Scrivi che cosa vuoi stampare.';
+  if (calcolo && calcolo.errore) return calcolo.errore;
+  return '';
+}
+
+function nota(passo) {
+  const id = PASSI[passo].id;
+  if (id !== 'misura' && id !== 'colori') return '';
+  if (calcolo && calcolo.corretto) return calcolo.corretto;
+  const t = taglia();
+  if (!cat.mostraPrezzi || t.prezzo == null) return '';
+  return 'In tutto ' + prezzoScritto(t.prezzo);
+}
+
+/* --------------------------------------------------------- la conferma */
+
+const nomeIn = (elenco, hex) => {
+  const c = (elenco || []).find(x => x.hex === hex);
+  return c ? c.nome : hex;
+};
+
+function conferma() {
+  if (!haTesto()) return null;
+  const t = taglia();
+  // adesso si costruisce sul serio, alla precisione piena del motore
+  const r = T.adattaAlRiquadro(scelta.fronte, comeMaglietta(cat, t));
+  if (r.errore) return null;
+  calcolo = r;
+  const L = scelta.fronte;
+  const sc = D.clona(scelta);
+  /* Le misure della taglia si copiano nell'ordine: se domani il catalogo
+     cambia, l'anteprima dell'ordine di ieri deve restare quella di ieri. */
+  sc.misure = { nome: t.nome, altezza: t.altezza, diametro: t.diametro,
+                areaLarghezza: t.areaLarghezza, areaAltezza: t.areaAltezza };
+
+  return D.aggiungiOrdine({
+    tipo: 'barattolo',
+    cliente: primaRiga(L.testo),
+    scelta: sc,
+    lati: [{ lato: 'fronte', cfg: r.cfg, colori: T.coloriDi(L), W: r.g.W, H: r.g.H }],
+    etichette: {
+      taglia: t.nome,
+      coloreBarattolo: nomeIn(cat.barattoli.coloriBarattolo, scelta.coloreBarattolo),
+      colori: [nomeIn(cat.magliette.coloriStampa, L.coloreTesto)],
+      prezzo: t.prezzo == null ? null : Number(t.prezzo),
+      valuta: cat.valuta,
+      font: [(FONT_DATA[L.fontId] || {}).nome || L.fontId],
+    },
+    correzioni: r.corretto ? [r.corretto] : [],
+  });
+}
+
+function pannelloFine(o) {
+  const e = o.etichette || {}, s = o.scelta || {}, L = s.fronte || {};
+  const prezzo = cat.mostraPrezzi && e.prezzo != null ? ' · ' + esc(prezzoScritto(e.prezzo)) : '';
+  return '<div id="finale">' +
+    '<div class="numerone">' + o.numero + '</div>' +
+    '<h2>Ordine registrato</h2>' +
+    '<p class="guida">Di’ questo numero a chi ti sta servendo.</p>' +
+    '<div class="riepilogo">' +
+    esc(riassunto(s)) + ' · ' + esc(nomeIn(cat.magliette.coloriStampa, L.coloreTesto)) +
+    (T.coloriDi(L) > 1 ? ' su ' + esc(nomeIn(cat.magliette.coloriStampa, L.coloreSfondo)) : '') + '<br>' +
+    'barattolo ' + esc(String(e.taglia || '').toLowerCase()) + ' ' +
+    esc(String(e.coloreBarattolo || '').toLowerCase()) + prezzo +
+    '</div></div>';
+}
+
+/* ==================================================================== */
+/*                     quello che vede l'operatore                       */
+/* ==================================================================== */
+
+const lavorazioneDi = (colori) => colori > 1 ? 'carta a colori' : 'vinile';
+const misureDi = (o) => (o.scelta || {}).misure || tagliaDi(D.leggiCatalogo(), (o.scelta || {}).taglia);
+
+function corpoOrdine(o) {
+  const cataloghi = D.leggiCatalogo();
+  const e = o.etichette || {}, s = o.scelta || {};
+  const r = (o.lati || [])[0];
+  if (!r) return '<p class="guida">Questo ordine non ha una scritta.</p>';
+  const g = window.Motore.costruisci(r.cfg);
+  return '<div class="latoOrdine">' +
+    '<div class="miniscena">' +
+      (g.errore ? esc(g.errore) : B.svg(misureDi(o), s.coloreBarattolo, g, s.fronte || {})) + '</div>' +
+    '<div class="sotto"><b>Barattolo ' + esc(String(e.taglia || '').toLowerCase()) + '</b>, ' +
+      esc(String(e.coloreBarattolo || '').toLowerCase()) + ' · ' + esc(riassunto(s)) + '<br>' +
+      (g.errore ? '' : numero(g.W) + ' × ' + numero(g.H) + ' mm, al centro dell’area di stampa<br>') +
+      esc(lavorazioneDi(r.colori)) + ' · ' + r.colori + (r.colori > 1 ? ' colori' : ' colore') +
+      (cataloghi.mostraPrezzi && e.prezzo != null ? ' · ' + esc(e.valuta || '') + ' ' + e.prezzo : '') +
+    '</div>' +
+    '<div class="fila">' +
+      '<button type="button" class="bottone piccolo" data-scaricam="colori" ' +
+        'data-n="' + o.numero + '" data-lato="fronte">A colori</button>' +
+      '<button type="button" class="bottone piccolo" data-scaricam="pezzi" ' +
+        'data-n="' + o.numero + '" data-lato="fronte">Per colore</button>' +
+    '</div></div>' +
+    (o.correzioni && o.correzioni.length
+      ? '<div class="correzioni"><b>Il chiosco ha corretto:</b><br>' +
+        o.correzioni.map(esc).join('<br>') + '</div>' : '') +
+    '<div class="fila">' +
+      '<button type="button" class="bottone piccolo" data-stato="' + o.numero + '">' +
+        (o.stato === 'fatto' ? 'Rimetti fra i pronti' : 'Segna fatto') + '</button>' +
+      '<button type="button" class="bottone piccolo" data-elimina="' + o.numero + '">Elimina</button>' +
+    '</div>';
+}
+
+/* Il piano di lavoro: lo stesso criterio delle magliette (a un colore si
+   taglia il vinile, tutti insieme per colore; da due in su si stampa la
+   carta), con in piu' la taglia scritta accanto, perche' il barattolo da
+   prendere dallo scaffale e' quello. */
+function vistaLavorazioni() {
+  const cataloghi = D.leggiCatalogo();
+  const pronti = D.leggiOrdini().filter(o => o.tipo === 'barattolo' && o.stato === 'pronto');
+  const testa = '<p class="guida">I barattoli che hai segnato pronti, messi ' +
+    'insieme per come si lavorano: a un colore si taglia il vinile, da due in ' +
+    'su si stampa la carta. Accanto a ogni pezzo c’è la taglia del barattolo.</p>';
+  if (!pronti.length) return testa + '<p class="guida">Nessun barattolo pronto.</p>';
+
+  const perColore = new Map(), carta = [];
+  for (const o of pronti) {
+    const r = (o.lati || [])[0], L = (o.scelta || {}).fronte || {};
+    if (!r) continue;
+    const voce = { numero: o.numero, cliente: o.cliente, W: r.W, H: r.H,
+                   taglia: (o.etichette || {}).taglia || '' };
+    if (r.colori > 1) { carta.push(voce); continue; }
+    const hex = L.coloreTesto;
+    if (!perColore.has(hex))
+      perColore.set(hex, { hex, nome: nomeIn(cataloghi.magliette.coloriStampa, hex), pezzi: [] });
+    perColore.get(hex).pezzi.push(voce);
+  }
+  const vinile = [...perColore.values()].sort((a, b) => b.pezzi.length - a.pezzi.length);
+
+  let out = testa;
+  if (vinile.length) {
+    out += '<h3>Da tagliare nel vinile</h3>';
+    for (const gruppo of vinile)
+      out += '<div class="caricamento"><div class="capo">' +
+        '<span class="gocciola" style="width:20px;height:20px;background:' + esc(gruppo.hex) + '"></span>' +
+        '<b>' + esc(gruppo.nome) + '</b><span class="sotto">' + gruppo.pezzi.length +
+        (gruppo.pezzi.length === 1 ? ' pezzo' : ' pezzi') + '</span></div>' +
+        gruppo.pezzi.map(rigaPezzo).join('') + '</div>';
+  }
+  if (carta.length) {
+    out += '<h3>Da stampare su carta</h3><div class="caricamento">' +
+      '<div class="capo"><b>Più colori</b><span class="sotto">' +
+      carta.length + (carta.length === 1 ? ' pezzo' : ' pezzi') + '</span></div>' +
+      carta.map(rigaPezzo).join('') + '</div>';
+  }
+  return out;
+}
+
+const rigaPezzo = (v) =>
+  '<div class="pezzo"><span class="num">' + v.numero + '</span>' +
+  '<span class="chi">' + esc(v.cliente || '') + '</span>' +
+  '<span class="quando">' + esc(v.taglia) + ' · ' + numero(v.W) + '×' + numero(v.H) + ' mm</span></div>';
+
+/* I file di un ordine, ricostruiti qui a precisione piena. Sono quelli del
+   tessile, con l'intestazione che dice l'oggetto giusto. */
+function fileDellOrdine(o, cataloghi, radice) {
+  const r = (o.lati || [])[0];
+  if (!r) return null;
+  const g = window.Motore.costruisci(r.cfg);
+  if (g.errore) return { errore: g.errore };
+  const c = comeMaglietta(cataloghi, misureDi(o));
+  return T.fileDelLato(g, (o.scelta || {}).fronte, c, radice)
+    .map(f => ({ nome: f.nome, testo: f.testo.replace('Generatore magliette', 'Generatore barattoli') }));
+}
+
+function fileDiUnLato(o, lato, quali) {
+  const tutti = fileDellOrdine(o, D.leggiCatalogo(),
+                               String(o.numero).padStart(3, '0') + '_' + nomeSicuro(o.cliente));
+  if (!tutti || tutti.errore) return tutti;
+  return quali === 'colori' ? [tutti[0]] : tutti.slice(1);
+}
+
+function nomeSicuro(s) {
+  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 24) || 'pezzo';
+}
+
+/* ------------------------------------------------------------ il catalogo */
+
+function vistaCatalogo(c) {
+  const Bc = c.barattoli;
+  const num = (i, k, et, min, max, passo, larg) =>
+    '<label class="campo" style="' + (larg || '') + '">' + et +
+    '<input type="number" data-tag="' + k + '" min="' + min + '" max="' + max +
+    '" step="' + passo + '" value="' + (Bc.taglie[i][k] == null ? '' : Bc.taglie[i][k]) + '"></label>';
+
+  const taglieHtml = Bc.taglie.map((t, i) =>
+    '<div class="rigaTaglia" data-i="' + i + '">' +
+    '<div class="riga">' +
+    '<input type="text" class="cresci" data-tag="nome" value="' + esc(t.nome) + '" placeholder="Nome">' +
+    '<button type="button" class="via" data-toglib="tag" data-i="' + i + '" title="Togli">✕</button></div>' +
+    '<div class="griglia2">' +
+      num(i, 'altezza', 'Altezza del barattolo (mm)', 10, 1000, 1) +
+      num(i, 'diametro', 'Diametro (mm)', 10, 1000, 1) +
+      num(i, 'areaAltezza', 'Area di stampa: altezza (mm)', 5, 1000, 1) +
+      num(i, 'areaLarghezza', 'Area di stampa: larghezza (mm)', 5, 1000, 1) +
+      num(i, 'prezzo', 'Prezzo, barattolo compreso', 0, 10000, 0.5) +
+    '</div></div>').join('');
+
+  return '<div class="avviso">Queste sono le impostazioni dei <b>barattoli</b>. ' +
+    'I colori di stampa e i caratteri sono quelli delle ' +
+    '<b>magliette</b>: la stampa è la stessa, cambia solo l’oggetto sotto.</div>' +
+
+    '<div class="sezione"><h3>Le taglie</h3>' +
+    '<p>Ogni taglia è un barattolo diverso, con la sua area di stampa: la ' +
+    'scritta non esce mai più grande di quell’area, e il chiosco la ' +
+    'rimpicciolisce da solo per farcela stare. L’area sta al centro del ' +
+    'barattolo. Il prezzo è per barattolo, stampa compresa, e non cambia col ' +
+    'numero di colori.</p>' +
+    '<div id="listaTaglie">' + taglieHtml + '</div>' +
+    '<button type="button" class="bottone piccolo" data-aggiungib="tag">Aggiungi taglia</button></div>' +
+
+    '<div class="sezione"><h3>Colori dei barattoli</h3>' +
+    '<p>Servono solo all’anteprima: il barattolo vero è quello che hai sullo scaffale.</p>' +
+    '<div id="listacb">' + Bc.coloriBarattolo.map((x, i) =>
+      '<div class="riga">' +
+      '<input type="color" data-cb="hex" value="' + esc(x.hex) + '">' +
+      '<input type="text" class="cresci" data-cb="nome" value="' + esc(x.nome) + '" placeholder="Nome del colore">' +
+      '<button type="button" class="via" data-toglib="cb" data-i="' + i + '" title="Togli">✕</button></div>').join('') +
+    '</div>' +
+    '<button type="button" class="bottone piccolo" data-aggiungib="cb">Aggiungi colore</button></div>' +
+
+    '<div class="fila">' +
+    '<button type="button" class="bottone forte" data-salva="catalogo">Salva il catalogo</button>' +
+    '</div>';
+}
+
+/* Rilegge dal DOM quello che l'operatore ha scritto. L'id di una taglia non
+   si tocca: e' quello che gli ordini hanno in tasca. Una taglia nuova ne
+   prende uno dal nome. */
+function raccogliCatalogo(c) {
+  const Bc = D.clona(c.barattoli);
+  const vecchie = Bc.taglie;
+  Bc.taglie = $$('#listaTaglie .rigaTaglia').map((riga, i) => {
+    const v = (k) => riga.querySelector('[data-tag="' + k + '"]').value;
+    const nome = v('nome').trim() || 'Taglia';
+    const prezzo = v('prezzo');
+    const id = vecchie[i] && vecchie[i].id ? vecchie[i].id
+             : nome.toLowerCase().replace(/[^a-z0-9]+/g, '-') || ('taglia' + (i + 1));
+    return { id, nome,
+      altezza: Number(v('altezza')), diametro: Number(v('diametro')),
+      areaAltezza: Number(v('areaAltezza')), areaLarghezza: Number(v('areaLarghezza')),
+      prezzo: prezzo === '' ? null : Number(prezzo) };
+  });
+  Bc.coloriBarattolo = $$('#listacb .riga').map(r => ({
+    hex: r.querySelector('[data-cb="hex"]').value,
+    nome: r.querySelector('[data-cb="nome"]').value.trim() || 'Senza nome',
+  }));
+
+  if (!Bc.taglie.length) return { errore: 'Serve almeno una taglia di barattolo.' };
+  for (const t of Bc.taglie) {
+    if (!(t.altezza > 0) || !(t.diametro > 0) || !(t.areaAltezza > 0) || !(t.areaLarghezza > 0))
+      return { errore: 'Le misure della taglia «' + t.nome + '» non possono essere zero.' };
+    if (t.areaAltezza > t.altezza || t.areaLarghezza > t.diametro)
+      return { errore: 'L’area di stampa della taglia «' + t.nome + '» è più grande del barattolo.' };
+  }
+  const id = Bc.taglie.map(t => t.id);
+  if (new Set(id).size !== id.length) return { errore: 'Due taglie hanno lo stesso nome.' };
+  if (!Bc.coloriBarattolo.length) return { errore: 'Serve almeno un colore di barattolo.' };
+  return { barattoli: Bc };
+}
+
+function cambiaRiga(c, azione, chiave, i) {
+  const Bc = c.barattoli;
+  const dove = chiave === 'tag' ? Bc.taglie : Bc.coloriBarattolo;
+  if (azione === 'togli') { if (dove.length > 1) dove.splice(i, 1); }
+  else if (chiave === 'tag') {
+    const n = dove.length + 1;
+    dove.push({ id: 'taglia' + n + '-' + Date.now().toString(36), nome: 'Nuova taglia',
+                altezza: 100, diametro: 99, areaAltezza: 80, areaLarghezza: 90, prezzo: 0 });
+  }
+  else dove.push({ hex: '#888888', nome: 'Nuovo colore' });
+  return c;
+}
+
+/* --------------------------------------------------------- l'archivio */
+
+const INTESTAZIONI = ['Numero', 'Nome', 'Taglia', 'Colore barattolo',
+  'Scritta', 'Righe', 'Carattere', 'Sfondo', 'Colore sfondo', 'Colore scritta',
+  'Colori', 'Lavorazione', 'Prezzo', 'Larghezza mm', 'Altezza mm',
+  'Correzioni applicate', 'Ordinato il', 'Stato'];
+
+const virgola = (v) => String(Math.round(v * 10) / 10).replace('.', ',');
+
+function rigaElenco(o, c) {
+  const s = o.scelta || {}, L = s.fronte || {}, e = o.etichette || {};
+  const r = (o.lati || [])[0] || {};
+  const M = c.magliette;
+  return window.Zip.rigaCSV([
+    o.numero, o.cliente, e.taglia || '', e.coloreBarattolo || '',
+    String(L.testo || '').split('\n').map(x => x.trim()).filter(Boolean).join(' / '),
+    T.quanteRighe(L.testo),
+    (FONT_DATA[L.fontId] || {}).nome || L.fontId,
+    (T.SFONDI[L.sfondo] || {}).titolo || L.sfondo,
+    T.SFONDI[L.sfondo] && T.SFONDI[L.sfondo].colori > 1 ? nomeIn(M.coloriStampa, L.coloreSfondo) : '',
+    nomeIn(M.coloriStampa, L.coloreTesto),
+    r.colori, lavorazioneDi(r.colori),
+    e.prezzo == null ? '' : String(e.prezzo).replace('.', ','),
+    r.W == null ? '' : virgola(r.W), r.H == null ? '' : virgola(r.H),
+    (o.correzioni || []).join(' — '),
+    o.quando ? o.quando.slice(0, 16).replace('T', ' ') : '',
+    o.stato,
+  ]);
+}
+
+function promemoria(o) {
+  const e = o.etichette || {}, s = o.scelta || {}, L = s.fronte || {};
+  const r = (o.lati || [])[0] || {}, m = misureDi(o) || {};
+  const out = ['Ordine ' + o.numero + ' — ' + (o.cliente || ''), ''];
+  out.push('Barattolo: ' + (e.taglia || '') + ', ' + (e.coloreBarattolo || ''));
+  if (m.altezza) out.push('  alto ' + virgola(m.altezza) + ' mm, diametro ' + virgola(m.diametro) +
+    ' mm; area di stampa ' + virgola(m.areaLarghezza) + ' x ' + virgola(m.areaAltezza) + ' mm, al centro');
+  out.push('');
+  out.push('  scritta:     ' + String(L.testo || '').split('\n').map(x => x.trim()).filter(Boolean).join(' / '));
+  if (r.W != null) out.push('  misura:      ' + virgola(r.W) + ' x ' + virgola(r.H) + ' mm');
+  out.push('  posizione:   al centro dell\'area di stampa');
+  out.push('  lavorazione: ' + lavorazioneDi(r.colori) + ' (' + r.colori + (r.colori > 1 ? ' colori' : ' colore') + ')');
+  out.push('');
+  if (o.correzioni && o.correzioni.length) {
+    out.push('Il chiosco ha corretto:');
+    o.correzioni.forEach(x => out.push('  ' + x));
+    out.push('');
+  }
+  return out.join('\n');
+}
+
+/* L'archivio: una cartella per ordine con tutti e due i formati e il
+   promemoria, e l'elenco in fondo. Come per le magliette, quale formato
+   usare si decide davanti alla macchina. */
+async function esporta(avanzamento) {
+  const c = D.leggiCatalogo();
+  const pronti = D.leggiOrdini().filter(o => o.tipo === 'barattolo' && o.stato === 'pronto');
+  if (!pronti.length) return { errore: 'Non c’è nessun barattolo pronto. ' +
+    'Spunta gli ordini controllati nella scheda Ordini.' };
+
+  const quando = new Date();
+  const radice = 'barattoli_' + quando.toISOString().slice(0, 10);
+  const voci = [], righe = [window.Zip.rigaCSV(INTESTAZIONI)], saltati = [];
+
+  for (let i = 0; i < pronti.length; i++) {
+    const o = pronti[i];
+    if (avanzamento) avanzamento('Preparo ' + (i + 1) + ' di ' + pronti.length + '…');
+    await new Promise(r => setTimeout(r, 0));
+    const nome = String(o.numero).padStart(3, '0') + '_' + nomeSicuro(o.cliente);
+    const cartella = radice + '/' + nome;
+    righe.push(rigaElenco(o, c));
+    const file = fileDellOrdine(o, c, nome);
+    if (!file || file.errore) { saltati.push(String(o.numero)); continue; }
+    for (const f of file) voci.push({ nome: cartella + '/' + f.nome, testo: f.testo });
+    voci.push({ nome: cartella + '/promemoria.txt', testo: promemoria(o) });
+  }
+
+  voci.push({ nome: radice + '/elenco.csv', testo: '﻿' + righe.join('\r\n') + '\r\n' });
+  return { blob: window.Zip.crea(voci, quando), nome: radice + '.zip',
+           quanti: pronti.length, saltati };
+}
+
+return { PASSI, avvia, rileggiCatalogo, aggiorna, pannello, collega, tocco,
+         scena, blocco, nota, conferma, pannelloFine,
+         corpoOrdine, vistaLavorazioni, fileDiUnLato, nomeSicuro,
+         vistaCatalogo, raccogliCatalogo, cambiaRiga, esporta, INTESTAZIONI,
+  _diagnostica: () => ({ cat, scelta, calcolo, passoCorrente }) };
+})();
+
+/* =====================================================================
    Portachiavi 3D — chiosco per il pubblico
    Quattro passi: nome, carattere, colori, misura. Nessun parametro tecnico
    in vista: tutto quello che serve a stampare arriva dal catalogo, che
@@ -11713,9 +12496,19 @@ const POSIZIONI = {
    si cambia qui, e piano.js lo prende come parametro apposta per questo. */
 const SLOT_BOBINE = 4;
 
-/* I passi di adesso, secondo quello che si sta ordinando. Le magliette li
-   portano da se': quel flusso vive tutto in magliette.js. */
-const passi = () => tipo === 'maglietta' ? window.Magliette.PASSI : PASSI_PORTACHIAVI;
+/* Le porte che vivono in un modulo loro, con la stessa faccia: le magliette
+   e i barattoli. I portachiavi restano qui dentro, e sono il caso che non
+   passa da qui. Ogni modulo espone PASSI, avvia, pannello, collega, tocco,
+   scena, blocco, nota, conferma, pannelloFine e la parte operatore. */
+const MODULI = { maglietta: () => window.Magliette, barattolo: () => window.Barattoli };
+const modulo = (t) => MODULI[t] ? MODULI[t]() : null;
+const NOMI_MESTIERE = { portachiavi: 'di portachiavi', maglietta: 'di magliette', barattolo: 'di barattoli' };
+
+/* I passi di adesso, secondo quello che si sta ordinando. I moduli li
+   portano da se'. */
+const passi = () => modulo(tipo) ? modulo(tipo).PASSI : PASSI_PORTACHIAVI;
+/* Vero sul passo che precede «fine»: e' quello che conferma l'ordine. */
+const ultimoPasso = () => !!passi()[passo + 1] && passi()[passo + 1].id === 'fine';
 
 const PASSI_PORTACHIAVI = [
   { id: 'nome',   titolo: 'Il nome',    guida: 'Scrivi come vuoi che ci sia scritto.' },
@@ -12010,7 +12803,7 @@ function disegna() {
     scena.innerHTML = '<div id="vuoto">Scegli qui sotto che cosa personalizzare</div>';
     return;
   }
-  if (tipo === 'maglietta') { scena.innerHTML = window.Magliette.scena(); return; }
+  if (modulo(tipo)) { scena.innerHTML = modulo(tipo).scena(); return; }
   if (!ultimo || ultimo.vuoto || ultimo.errore || !ultimo.g) {
     scena.innerHTML = '<div id="vuoto">' +
       (ultimo && ultimo.errore ? esc(ultimo.errore)
@@ -12196,6 +12989,10 @@ function pannelloScelta() {
       '<span class="disegno">' + DISEGNO_MAGLIETTA + '</span>' +
       '<span class="titolo cresci">Una maglietta</span>' +
       '<span class="sotto">la tua scritta stampata sul tessuto</span></button>' +
+    '<button type="button" class="scelta porta" data-tipo="barattolo">' +
+      '<span class="disegno">' + DISEGNO_BARATTOLO + '</span>' +
+      '<span class="titolo cresci">Un barattolo</span>' +
+      '<span class="sotto">la tua scritta su un barattolo di latta</span></button>' +
     '</div>';
 }
 
@@ -12205,6 +13002,10 @@ const DISEGNO_PORTACHIAVI =
   '<svg viewBox="0 0 100 60" aria-hidden="true"><g fill="none" stroke="currentColor" ' +
   'stroke-width="4" stroke-linejoin="round"><rect x="26" y="12" width="62" height="36" rx="10"/>' +
   '<circle cx="16" cy="30" r="9"/></g></svg>';
+const DISEGNO_BARATTOLO =
+  '<svg viewBox="0 0 100 60" aria-hidden="true"><g fill="none" stroke="currentColor" ' +
+  'stroke-width="4" stroke-linejoin="round"><path d="M30 12 V52 H70 V12"/>' +
+  '<ellipse cx="50" cy="12" rx="20" ry="5"/><path d="M30 52 Q50 60 70 52"/></g></svg>';
 const DISEGNO_MAGLIETTA =
   '<svg viewBox="0 0 100 60" aria-hidden="true"><path fill="none" stroke="currentColor" ' +
   'stroke-width="4" stroke-linejoin="round" d="M38 6 L22 12 L10 26 L20 34 L28 28 L28 56 ' +
@@ -12228,11 +13029,11 @@ function disegnaPannello(tieniLaVista) {
     aggiornaFondo();
     return;
   }
-  if (tipo === 'maglietta') {
-    p.innerHTML = window.Magliette.pannello(passo);
+  if (modulo(tipo)) {
+    p.innerHTML = modulo(tipo).pannello(passo);
     rimetti();
-    // le magliette devono sapere se e' un ridisegno: il fuoco lo danno solo arrivando
-    window.Magliette.collega(passo, tieniLaVista);
+    // il modulo deve sapere se e' un ridisegno: il fuoco lo da' solo arrivando
+    modulo(tipo).collega(passo, tieniLaVista);
     segnaPassi();
     aggiornaFondo();
     return;
@@ -12300,7 +13101,7 @@ function aggiornaFondo() {
   const id = passi()[passo].id;
   indietro.hidden = id === 'fine';        // dal passo 0 si torna alla scelta
 
-  if (tipo === 'maglietta') return fondoMaglietta(id, nota, avanti);
+  if (modulo(tipo)) return fondoModulo(id, nota, avanti);
 
   if (id === 'fine') {
     avanti.textContent = 'Ricomincia';
@@ -12333,18 +13134,18 @@ function aggiornaFondo() {
   nota.className = blocco ? 'male' : '';
 }
 
-/* Il fondo quando si sta facendo una maglietta. Il perche' non si possa
-   andare avanti lo sa il flusso delle magliette, che e' l'unico a sapere
-   quanti lati mancano di testo. */
-function fondoMaglietta(id, nota, avanti) {
-  const M = window.Magliette;
+/* Il fondo quando si sta facendo una maglietta o un barattolo. Il perche'
+   non si possa andare avanti lo sa il modulo, che e' l'unico a sapere che
+   cosa manca. */
+function fondoModulo(id, nota, avanti) {
+  const M = modulo(tipo);
   if (id === 'fine') {
     avanti.textContent = 'Ricomincia';
     avanti.disabled = false;
     nota.textContent = ''; nota.className = '';
     return;
   }
-  avanti.textContent = id === 'posizione' ? 'Conferma' : 'Avanti';
+  avanti.textContent = ultimoPasso() ? 'Conferma' : 'Avanti';
   const blocco = M.blocco(passo);
   avanti.disabled = !!blocco;
   nota.textContent = blocco || M.nota(passo) || '';
@@ -12496,7 +13297,7 @@ function vaiA(n) {
   passo = Math.max(0, Math.min(passi().length - 1, n));
   // cambiando passo il verdetto dev'essere quello vero, non una bozza: il
   // risultato e' in memoria, quindi quando nulla e' cambiato non costa nulla
-  if (tipo === 'maglietta') window.Magliette.aggiorna();
+  if (modulo(tipo)) modulo(tipo).aggiorna();
   else rigenera();
   disegnaPannello();
   disegna();
@@ -12508,13 +13309,15 @@ function scegliTipo(t) {
   passo = 0;
   document.body.dataset.tipo = t || '';
   $('#titolo').textContent = t === 'maglietta' ? 'Personalizza la tua maglietta'
+                           : t === 'barattolo' ? 'Personalizza il tuo barattolo'
                            : t === 'portachiavi' ? 'Crea il tuo portachiavi'
                            : 'Che cosa personalizziamo?';
   $('#sottotitolo').textContent = t === 'maglietta' ? 'scrivi, scegli i colori, mettila dove vuoi'
+                                : t === 'barattolo' ? 'scegli la taglia, scrivi, scegli i colori'
                                 : t === 'portachiavi' ? 'scegli il nome, il carattere e i colori'
-                                : 'un portachiavi o una maglietta';
-  if (t === 'maglietta') {
-    window.Magliette.avvia(cat, {
+                                : 'un portachiavi, una maglietta o un barattolo';
+  if (modulo(t)) {
+    modulo(t).avvia(cat, {
       disegna, aggiornaFondo,
       // ridisegnando dopo una scelta si tiene la vista dov'era
       disegnaPannello: () => disegnaPannello(true),
@@ -12564,12 +13367,12 @@ function conferma() {
   aggiornaFondo();
 }
 
-function confermaMaglietta() {
-  const ordine = window.Magliette.conferma();
+function confermaModulo() {
+  const ordine = modulo(tipo).conferma();
   if (!ordine) { $('#nota').textContent = 'Non riesco a salvare l’ordine.'; return; }
   passo = passi().length - 1;
   segnaPassi();
-  $('#pannello').innerHTML = window.Magliette.pannelloFine(ordine);
+  $('#pannello').innerHTML = modulo(tipo).pannelloFine(ordine);
   disegna();
   aggiornaFondo();
 }
@@ -12605,8 +13408,8 @@ function chiudiOperatore() {
      solo il mestiere aperto, e sulla schermata di scelta non c'e' niente da
      ricontrollare. */
   if (tipo === null) { disegnaPannello(); disegna(); return; }
-  if (tipo === 'maglietta') {
-    window.Magliette.rileggiCatalogo(cat);
+  if (modulo(tipo)) {
+    modulo(tipo).rileggiCatalogo(cat);
     disegnaPannello(); disegna();
     return;
   }
@@ -12627,10 +13430,10 @@ function disegnaOperatore() {
     b.setAttribute('aria-selected', String(b.dataset.op === opScheda)));
   $$('.opTipo').forEach(b =>
     b.setAttribute('aria-pressed', String(b.dataset.optipo === opTipo)));
-  const maglie = opTipo === 'maglietta';
+  const M = modulo(opTipo);
   if (opScheda === 'ordini')        $('#opCorpo').innerHTML = vistaOrdini();
   else if (opScheda === 'stampa')   $('#opCorpo').innerHTML =
-      maglie ? window.Magliette.vistaLavorazioni() : vistaStampa();
+      M ? M.vistaLavorazioni() : vistaStampa();
   else if (opScheda === 'catalogo') $('#opCorpo').innerHTML = vistaCatalogo();
   else                              $('#opCorpo').innerHTML = vistaDispositivo();
 }
@@ -12658,7 +13461,7 @@ function vistaOrdini() {
      Qui si guarda solo il mestiere aperto. */
   const tutti = D.leggiOrdini().filter(o => o.tipo === opTipo).slice().reverse();
   if (!tutti.length) return '<p class="guida">Nessun ordine ' +
-    (opTipo === 'maglietta' ? 'di magliette' : 'di portachiavi') + ' ancora.</p>';
+    (NOMI_MESTIERE[opTipo] || '') + ' ancora.</p>';
   const quanti = (s) => s === 'tutti' ? tutti.length
                                       : tutti.filter(x => x.stato === s).length;
   const mostrati = filtroOrdini === 'tutti'
@@ -12689,9 +13492,12 @@ function rigaOrdine(o) {
   const colori = o.tipo === 'maglietta'
     ? pallinoPiccolo(s.coloreMaglia) +
       pallinoPiccolo(((s[(s.lati || ['fronte'])[0]]) || {}).coloreTesto)
+    : o.tipo === 'barattolo'
+    ? pallinoPiccolo(s.coloreBarattolo) + pallinoPiccolo((s.fronte || {}).coloreTesto)
     : pallinoPiccolo(s.coloreBase) + pallinoPiccolo(s.coloreTesto);
   const dettaglio = o.tipo === 'maglietta'
     ? (e.lati || []).join(' e ') + (e.taglia ? ' · ' + esc(e.taglia) : '')
+    : o.tipo === 'barattolo' ? esc(e.taglia || '')
     : esc(e.misura || '');
 
   return '<details class="ordine" data-numero="' + o.numero + '">' +
@@ -12719,9 +13525,9 @@ function riempiOrdine(numero) {
   const o = D.leggiOrdini().find(x => x.numero === numero);
   const dove = $('.dentro[data-corpo="' + numero + '"]');
   if (!o || !dove || dove.dataset.costruito) return;
-  if (o.tipo === 'maglietta') {
+  if (modulo(o.tipo)) {
     dove.dataset.costruito = '1';
-    dove.innerHTML = window.Magliette.corpoOrdine(o);
+    dove.innerHTML = modulo(o.tipo).corpoOrdine(o);
     return;
   }
   if (!eportachiavi(o)) {
@@ -12874,7 +13680,7 @@ function salvaFile(contenuto, tipo, nome) {
 /* ----------------------------------------------------------- il catalogo */
 
 function vistaCatalogo() {
-  if (opTipo === 'maglietta') return window.Magliette.vistaCatalogo(cat);
+  if (modulo(opTipo)) return modulo(opTipo).vistaCatalogo(cat);
   const R = cat.regole;
   const numero = (k, et, min, max, passo, dove) =>
     '<label class="campo">' + et + '<input type="number" data-reg="' + k + '" ' +
@@ -12969,14 +13775,15 @@ function rigaMisura(m, i) {
     '<button type="button" class="via" data-togli="misura" data-i="' + i + '" title="Togli">✕</button></div>';
 }
 
-/* Il catalogo delle magliette e' un blocco a se': si salva quello e basta,
-   senza rileggere i campi dei portachiavi, che in quella schermata non ci
-   sono nemmeno. */
-function salvaCatalogoMagliette() {
-  const esito = window.Magliette.raccogliCatalogo(cat);
+/* Il catalogo di un modulo e' un blocco a se' (`magliette` o `barattoli`):
+   si salva quello e basta, senza rileggere i campi dei portachiavi, che in
+   quella schermata non ci sono nemmeno. Il modulo restituisce il suo blocco
+   gia' con la chiave giusta. */
+function salvaCatalogoModulo() {
+  const esito = modulo(opTipo).raccogliCatalogo(cat);
   if (esito.errore) return avvisa(esito.errore);
   const nuovo = D.clona(cat);
-  nuovo.magliette = esito.magliette;
+  Object.assign(nuovo, esito);
   D.scriviCatalogo(nuovo);
   cat = D.leggiCatalogo();
   piano = null;
@@ -12985,7 +13792,7 @@ function salvaCatalogoMagliette() {
 }
 
 function salvaCatalogo() {
-  if (opTipo === 'maglietta') return salvaCatalogoMagliette();
+  if (modulo(opTipo)) return salvaCatalogoModulo();
   const nuovo = D.clona(cat);
   nuovo.colori = [...$('#listaColori').querySelectorAll('.riga')].map(r => ({
     hex: r.querySelector('[data-col="hex"]').value,
@@ -13298,6 +14105,18 @@ function rigaConti(o) {
       (o.correzioni || []).join(' — '),
       e.coloreMaglia || '', (e.lati || []).join(' e '), colori.join(' ')]);
   }
+  if (o.tipo === 'barattolo') {
+    const r = (o.lati || [])[0] || {};
+    return Z.rigaCSV(['Barattolo', o.numero, o.cliente,
+      (e.font || []).join(' '), '', (e.colori || []).join(' '),
+      e.taglia || '', '', '',
+      e.prezzo == null ? '' : String(e.prezzo).replace('.', ','),
+      oraCorta(o.quando),
+      r.W == null ? '' : String(Math.round(r.W * 10) / 10).replace('.', ','),
+      r.H == null ? '' : String(Math.round(r.H * 10) / 10).replace('.', ','),
+      (o.correzioni || []).join(' — '),
+      e.coloreBarattolo || '', 'Davanti', r.colori == null ? '' : String(r.colori)]);
+  }
   return Z.rigaCSV(['Portachiavi', o.numero, o.cliente, e.font, e.coloreBase,
     e.coloreTesto, e.misura, e.mm, e.anello,
     e.prezzo == null ? '' : String(e.prezzo).replace('.', ','),
@@ -13314,11 +14133,11 @@ function esportaElenco() {
                     { type: 'text/csv' }), nome);
 }
 
-/* L'archivio delle magliette lo prepara magliette.js: qui restano solo
-   l'avanzamento e la consegna, che sono le stesse per tutti e due. */
-async function esportaMagliette() {
+/* L'archivio delle magliette e dei barattoli lo prepara il loro modulo: qui
+   restano solo l'avanzamento e la consegna, che sono le stesse per tutti. */
+async function esportaModulo() {
   const dove = $('#avanzamento');
-  const esito = await window.Magliette.esporta(
+  const esito = await modulo(opTipo).esporta(
     (testo) => { if (dove) dove.textContent = testo; });
   if (dove) dove.textContent = '';
   if (esito.errore) return avvisa(esito.errore);
@@ -13341,7 +14160,15 @@ function vistaDispositivo() {
   const daControllare = suoi.filter(x => x.stato === 'da controllare').length;
 
   return '<div class="sezione"><h3>Esportare per la stampa</h3>' +
-    (maglie
+    (opTipo === 'barattolo'
+      ? '<p>Un archivio con una cartella per ordine. In ognuna ci sono ' +
+        '<b>tutti e due i formati</b>: il file unico a colori, per la carta, ' +
+        'e un file per ogni colore, in nero, per il vinile da tagliare. ' +
+        'Quale usare lo decidi davanti alla macchina. C’è anche un ' +
+        '<b>promemoria</b> con la taglia e il colore del barattolo: la ' +
+        'scritta va al centro dell’area di stampa. ' +
+        'Vengono presi solo i barattoli <b>pronti</b>.</p>'
+      : maglie
       ? '<p>Un archivio con una cartella per ordine e dentro una per lato. ' +
         'In ognuna ci sono <b>tutti e due i formati</b>: il file unico a ' +
         'colori, per la carta da stampare e pressare, e un file per ogni ' +
@@ -13365,7 +14192,7 @@ function vistaDispositivo() {
     /* Il solido pesa circa un mega per ordine, gli SVG una ventina di kB:
        con molti ordini la differenza si sente, e chi stampa a mano non lo
        vuole nemmeno. Percio' si puo' spegnere. */
-    (maglie ? '' :
+    (opTipo !== 'portachiavi' ? '' :
       '<label class="opzione"><input type="checkbox" id="conSolido" checked>' +
       '<span>Metti anche il <b>solido 3D</b> di ogni ordine ' +
       '<i>(circa 1 MB per ordine: senza, l’archivio resta leggero)</i></span></label>') +
@@ -13447,8 +14274,8 @@ function collega() {
   $('#avanti').addEventListener('click', () => {
     const id = passi()[passo].id;
     if (id === 'fine') return ricomincia();
-    if (tipo === 'maglietta') {
-      if (id === 'posizione') return confermaMaglietta();
+    if (modulo(tipo)) {
+      if (ultimoPasso()) return confermaModulo();
       return vaiA(passo + 1);
     }
     if (id === 'misura') return conferma();
@@ -13461,8 +14288,8 @@ function collega() {
     if (!b) return;
     // la porta d'ingresso: e' un .scelta come gli altri, ma cambia mestiere
     if (b.dataset.tipo) return scegliTipo(b.dataset.tipo);
-    // dentro le magliette decide il loro flusso, che conosce la sua scelta
-    if (tipo === 'maglietta') return window.Magliette.tocco(b);
+    // dentro le magliette e i barattoli decide il loro modulo, che conosce la sua scelta
+    if (modulo(tipo)) return modulo(tipo).tocco(b);
     if (b.dataset.font) { scelta.fontId = b.dataset.font; scelta.fontDaCliente = true; }
     else if (b.dataset.colore) scelta[b.dataset.colore] = b.dataset.hex;
     else if (b.dataset.asola) scelta.posAsola = b.dataset.asola;
@@ -13521,7 +14348,9 @@ function collega() {
     if (sm) {
       const o = D.leggiOrdini().find(x => x.numero === Number(sm.dataset.n));
       if (!o) return;
-      const file = window.Magliette.fileDiUnLato(o, sm.dataset.lato, sm.dataset.scaricam);
+      const M = modulo(o.tipo);
+      if (!M) return;
+      const file = M.fileDiUnLato(o, sm.dataset.lato, sm.dataset.scaricam);
       if (!file) return;
       if (file.errore) return avvisa(file.errore);
       file.forEach((f, i) => setTimeout(() =>
@@ -13578,7 +14407,7 @@ function collega() {
     }
 
     if (t.closest('[data-zip]')) {
-      if (opTipo === 'maglietta') esportaMagliette();
+      if (modulo(opTipo)) esportaModulo();
       else esportaPerStampa();
       return;
     }
@@ -13621,6 +14450,20 @@ function collega() {
     if (tgm) {
       D.scriviCatalogo(window.Magliette.cambiaRiga(
         cat, 'togli', tgm.dataset.toglim, Number(tgm.dataset.i)));
+      cat = D.leggiCatalogo();
+      return disegnaOperatore();
+    }
+    /* Le righe del catalogo dei barattoli, allo stesso modo. */
+    const agb = t.closest('[data-aggiungib]');
+    if (agb) {
+      D.scriviCatalogo(window.Barattoli.cambiaRiga(cat, 'aggiungi', agb.dataset.aggiungib));
+      cat = D.leggiCatalogo();
+      return disegnaOperatore();
+    }
+    const tgb = t.closest('[data-toglib]');
+    if (tgb) {
+      D.scriviCatalogo(window.Barattoli.cambiaRiga(
+        cat, 'togli', tgb.dataset.toglib, Number(tgb.dataset.i)));
       cat = D.leggiCatalogo();
       return disegnaOperatore();
     }
