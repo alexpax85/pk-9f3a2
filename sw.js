@@ -11,7 +11,7 @@
    senza che nessuno debba fare niente.
    ===================================================================== */
 
-const VERSIONE = 'portachiavi-c933cbe6';
+const VERSIONE = 'portachiavi-b9d137ee';
 
 /* Cosa serve per partire. Il grosso e' tutto dentro index.html, che porta
    dentro di se' font, librerie e programma: un file solo, circa un mega. */

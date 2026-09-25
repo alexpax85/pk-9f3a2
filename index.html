@@ -384,6 +384,23 @@ body[data-tipo="maglietta"] #scena::before, body[data-tipo="barattolo"] #scena::
 .sezione > h3 { margin: 0 0 4px; font-family: var(--display); font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
 .sezione > p { margin: 0 0 12px; color: var(--tenue); font-size: 14px; }
 .piccolo { font-size: 14px; padding: 0 16px; min-height: 46px; }
+/* il collegamento al server, in testata all'operatore */
+.sincro {
+  font-size: 13px; font-weight: 650; color: var(--tenue); white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.sincro::before {
+  content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--tenue);
+}
+.sincro[data-v="ok"]::before     { background: var(--neon); }
+.sincro[data-v="attesa"]::before { background: var(--avorio); }
+.sincro[data-v="errore"]::before,
+.sincro[data-v="fermo"]::before  { background: var(--magenta); }
+#opNovita { border-color: var(--neon); color: var(--neon); }
+.avviso.errore { background: rgba(255,46,136,.08); border-color: rgba(255,46,136,.45); }
+form.accesso { margin: 0; }
+#listaPostazioni { margin: 4px 0 12px; }
+
 .griglia2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 18px; }
 .campo { display: flex; flex-direction: column; gap: 5px; font-size: 14px; color: var(--tenue); }
 .campo input, .campo select {
@@ -507,6 +524,9 @@ body[data-tipo="maglietta"] #scena, body[data-tipo="barattolo"] #scena { flex: 0
 <div id="operatore" hidden>
   <div id="opTestata">
     <h2 id="opTitolo">Operatore</h2>
+    <!-- il collegamento al server: compare solo se il tablet e' collegato -->
+    <span id="opSincro" class="sincro" hidden></span>
+    <button type="button" id="opNovita" class="bottone piccolo" hidden>Novità: aggiorna</button>
     <button type="button" id="opChiudi" class="bottone piccolo">Chiudi</button>
   </div>
   <!-- il mestiere e' una dimensione a se': le schede restano quattro -->
@@ -9623,8 +9643,12 @@ return { file3MF, byte3MF, sedeDi, ALTEZZA_BASE, ALTEZZA_PARTE };
 
 /* =====================================================================
    Portachiavi 3D — dati che restano: catalogo e ordini
-   Tutto nella memoria del browser (localStorage), niente rete. Il catalogo
-   e' quello che l'operatore puo' cambiare senza toccare il codice: colori
+   Tutto nella memoria del browser (localStorage), e tutto sincrono: i
+   settanta punti che chiamano questo modulo si aspettano la risposta
+   subito. La rete non passa di qui: quando il dispositivo e' collegato al
+   server, src/sincro.js ascolta le scritture (osserva) e rimette nella
+   stessa memoria quello che arriva dagli altri (grezzo). Il catalogo e'
+   quello che l'operatore puo' cambiare senza toccare il codice: colori
    disponibili, misure e prezzi, caratteri offerti, regole di stampa.
    ===================================================================== */
 window.Dati = (function () {
@@ -9632,6 +9656,12 @@ window.Dati = (function () {
 
 const CHIAVE_CAT = 'portachiavi3d.catalogo';
 const CHIAVE_ORD = 'portachiavi3d.ordini';
+/* La lettera della postazione e l'ultimo numero dato. Il contatore sta a
+   parte, e non si ricava dagli ordini presenti, perche' collegati al server
+   i fatti vecchi escono dalla copia locale: il numero piu' alto rimasto non
+   e' per forza l'ultimo detto a un cliente. */
+const CHIAVE_POST = 'portachiavi3d.postazione';
+const CHIAVE_CONT = 'portachiavi3d.contatore';
 
 /* I caratteri proposti al pubblico. Scelti misurando, non a occhio:
    • Pacifico e Grand Hotel sono gli unici corsivi in cui le lettere si
@@ -9886,10 +9916,22 @@ function leggiCatalogo() {
   return fondi(s);
 }
 
-function scriviCatalogo(c) {
+function scriviCatalogoGrezzo(c) {
   try { localStorage.setItem(CHIAVE_CAT, JSON.stringify(c)); return true; }
   catch (e) { return false; }
 }
+
+function scriviCatalogo(c) {
+  const ok = scriviCatalogoGrezzo(c);
+  if (ok) avvisa({ catalogo: true });
+  return ok;
+}
+
+/* Chi vuole sapere delle scritture (sincro.js). Uno solo: non serve altro,
+   e con un elenco un ascoltatore dimenticato scriverebbe due volte. */
+let osservatore = null;
+function osserva(fn) { osservatore = fn; }
+function avvisa(cosa) { if (osservatore) try { osservatore(cosa); } catch (e) {} }
 
 /* Un ordine attraversa tre stati:
      da controllare  appena arrivato dal chiosco, nessuno l'ha ancora guardato
@@ -9922,8 +9964,42 @@ function scriviOrdini(o) {
   catch (e) { return false; }
 }
 
+/* ------------------------------------------------------------ numerazione
+   Senza postazione i numeri sono 1, 2, 3 come sempre. Con la postazione
+   diventano A-001, A-002: due tablet senza rete non possono dare lo stesso
+   numero a due clienti, e il numero detto al banco non cambia piu' dopo.
+   Il confronto fra numeri passa sempre da String: un ordine vecchio ha il
+   numero intero, uno nuovo la sigla, e un dataset e' sempre una stringa. */
+const stessoNumero = (a, b) => String(a) === String(b);
+
+function postazione() {
+  try { return localStorage.getItem(CHIAVE_POST) || null; } catch (e) { return null; }
+}
+
+const sigla = (lettera, n) => lettera + '-' + String(n).padStart(3, '0');
+/* Il numero dentro la sigla: «A-042» -> 42. Per gli interi e' se stesso. */
+function progressivo(numero, lettera) {
+  if (typeof numero === 'number') return lettera ? 0 : numero;
+  const m = /^([A-Z])-(\d+)$/.exec(String(numero));
+  return m && m[1] === lettera ? Number(m[2]) : 0;
+}
+
+function contatore() {
+  try { return Number(localStorage.getItem(CHIAVE_CONT)) || 0; } catch (e) { return 0; }
+}
+function fissaContatore(n) {
+  try { localStorage.setItem(CHIAVE_CONT, String(n)); } catch (e) {}
+}
+
 function prossimoNumero() {
-  return leggiOrdini().reduce((m, o) => Math.max(m, o.numero || 0), 0) + 1;
+  const L = postazione();
+  const n = leggiOrdini().reduce((m, o) => Math.max(m, progressivo(o.numero, L)),
+                                 L ? contatore() : 0) + 1;
+  return L ? sigla(L, n) : n;
+}
+
+function trova(numero) {
+  return leggiOrdini().find(o => stessoNumero(o.numero, numero)) || null;
 }
 
 function aggiungiOrdine(o) {
@@ -9935,19 +10011,54 @@ function aggiungiOrdine(o) {
   // per quelli di prima, e non e' un servizio che deve durare per sempre
   if (!TIPI.includes(o.tipo)) o.tipo = 'portachiavi';
   tutti.push(o);
-  return scriviOrdini(tutti) ? o : null;
+  if (!scriviOrdini(tutti)) return null;
+  const L = postazione();
+  if (L) fissaContatore(progressivo(o.numero, L));
+  avvisa({ ordine: o.numero, campi: ['nuovo'] });
+  return o;
 }
 
 function modificaOrdine(numero, cambi) {
   const tutti = leggiOrdini();
-  const i = tutti.findIndex(o => o.numero === numero);
+  const i = tutti.findIndex(o => stessoNumero(o.numero, numero));
   if (i < 0) return false;
   Object.assign(tutti[i], cambi);
-  return scriviOrdini(tutti);
+  if (!scriviOrdini(tutti)) return false;
+  // lo stato viaggia da solo: e' il campo che due dispositivi toccano insieme
+  const campi = Object.keys(cambi).map(k => k === 'stato' ? 'stato' : 'dati');
+  avvisa({ ordine: tutti[i].numero, campi: [...new Set(campi)] });
+  return true;
 }
 
 function eliminaOrdine(numero) {
-  return scriviOrdini(leggiOrdini().filter(o => o.numero !== numero));
+  const ok = scriviOrdini(leggiOrdini().filter(o => !stessoNumero(o.numero, numero)));
+  if (ok) avvisa({ ordine: numero, campi: ['eliminato'] });
+  return ok;
+}
+
+/* Il passaggio alla postazione, una volta sola: gli ordini a numero intero
+   presi qui prendono la sigla della lettera, cosi' sul server non si
+   scontrano con quelli degli altri tablet, che hanno gli stessi 1, 2, 3.
+   Su una lettera nuova il numero dentro resta quello (il 42 diventa A-042).
+   Su una lettera che ha gia' ordini sul server (`ultimo`, il piu' alto
+   dato) no: A-001 c'e' gia', e gli ordini di qui si mettono in fila dopo.
+   Restituisce gli ordini convertiti. */
+function impostaPostazione(lettera, ultimo) {
+  const tutti = leggiOrdini();
+  const convertiti = [];
+  let alto = Number(ultimo) || 0;
+  const inFila = alto > 0;
+  for (const o of tutti) {
+    if (typeof o.numero !== 'number') continue;
+    alto = inFila ? alto + 1 : Math.max(alto, o.numero);
+    o.numero = sigla(lettera, inFila ? alto : o.numero);
+    convertiti.push(o);
+  }
+  for (const o of tutti) alto = Math.max(alto, progressivo(o.numero, lettera));
+  try { localStorage.setItem(CHIAVE_POST, lettera); } catch (e) { return null; }
+  fissaContatore(alto);
+  scriviOrdini(tutti);
+  return convertiti;
 }
 
 /* Esportazione: un solo file con catalogo e ordini, da passare all'altro
@@ -9984,28 +10095,647 @@ function importa(testo, modo) {
   }
 
   const miei = leggiOrdini();
-  const presi = new Set(miei.map(o => o.numero));
-  let prossimo = miei.reduce((m, o) => Math.max(m, o.numero || 0), 0) + 1;
+  const presi = new Set(miei.map(o => String(o.numero)));
+  const L = postazione();
   let aggiunti = 0;
+  const nuovi = [];
   for (const o of (d.ordini || [])) {
     // stesso numero e stessa ora = e' lo stesso ordine, non lo duplico
-    if (miei.some(m => m.numero === o.numero && m.quando === o.quando)) continue;
-    if (presi.has(o.numero)) o.numero = prossimo++;
-    presi.add(o.numero);
-    miei.push(o); aggiunti++;
+    if (miei.some(m => stessoNumero(m.numero, o.numero) && m.quando === o.quando)) continue;
+    /* Con la postazione un numero intero arriva da un tablet mai collegato:
+       prende una sigla di questa, come un ordine preso qui. Una sigla gia'
+       presa e' di un altro ordine, e si rinumera allo stesso modo. */
+    if (presi.has(String(o.numero)) || (L && typeof o.numero === 'number')) {
+      const n = miei.concat(nuovi).reduce((m, x) => Math.max(m, progressivo(x.numero, L)),
+                                          L ? contatore() : 0) + 1;
+      o.numero = L ? sigla(L, n) : n;
+      if (L) fissaContatore(n);
+    }
+    presi.add(String(o.numero));
+    miei.push(o); nuovi.push(o); aggiunti++;
   }
   scriviOrdini(miei);
+  nuovi.forEach(o => avvisa({ ordine: o.numero, campi: ['nuovo'] }));
   return { ordini: aggiunti };
 }
 
 function azzeraOrdini() { return scriviOrdini([]); }
 function azzeraCatalogo() { return scriviCatalogo(clona(INIZIALE)); }
 
+/* Un ordine che sul server trova il suo numero gia' preso da un altro
+   prende il primo libero di questa postazione. Succede solo se due tablet
+   hanno la stessa lettera: e' un errore, ma l'ordine non si deve perdere.
+   Non avvisa l'osservatore: la coda di uscita la sposta chi chiama. */
+function rinumera(numero) {
+  const L = postazione();
+  if (!L) return null;
+  const tutti = leggiOrdini();
+  const o = tutti.find(x => stessoNumero(x.numero, numero));
+  if (!o) return null;
+  const n = tutti.reduce((m, x) => Math.max(m, progressivo(x.numero, L)), contatore()) + 1;
+  o.numero = sigla(L, n);
+  fissaContatore(n);
+  return scriviOrdini(tutti) ? o.numero : null;
+}
+
+/* Le scritture che arrivano dal server: stessa memoria, ma senza avvisare
+   l'osservatore, senno' ogni ordine ricevuto ripartirebbe verso il server. */
+const grezzo = {
+  catalogo() {
+    try { return JSON.parse(localStorage.getItem(CHIAVE_CAT) || 'null'); } catch (e) { return null; }
+  },
+  scriviCatalogo: scriviCatalogoGrezzo,
+  scriviOrdini,
+  rinumera,
+  fissaContatore,
+  contatore,
+};
+
 return {
   INIZIALE, STATI, TIPI, clona,
   leggiCatalogo, scriviCatalogo, azzeraCatalogo,
-  leggiOrdini, aggiungiOrdine, modificaOrdine, eliminaOrdine, azzeraOrdini,
+  leggiOrdini, trova, aggiungiOrdine, modificaOrdine, eliminaOrdine, azzeraOrdini,
   prossimoNumero, esporta, importa,
+  postazione, impostaPostazione, progressivo, stessoNumero, osserva, grezzo,
+};
+})();
+
+/* =====================================================================
+   MOV3DO — il collegamento al server (Supabase)
+   Il chiosco lavora sempre sulla sua copia nel localStorage (dati.js) e
+   funziona anche senza rete: questo modulo porta sul server quello che
+   cambia qui e riporta qui quello che cambia altrove. Niente librerie:
+   Supabase si parla con fetch, ed e' per questo che e' stato scelto.
+
+   Il giro e' sempre lo stesso, ogni POLL_MS o appena si scrive qualcosa:
+     1. invia     la coda di uscita: gli ordini nuovi o cambiati qui, e il
+                  catalogo se e' stato salvato
+     2. ricevi    il catalogo se e' salito di versione, e gli ordini
+                  cambiati sul server dall'ultima volta
+   Chi scrive per ultimo vince, ma lo stato di un ordine viaggia da solo
+   (colonna a parte, vedi supabase/schema.sql): spuntare «pronto» su un
+   tablet non cancella un ritocco fatto sul Mac.
+   ===================================================================== */
+window.Sincro = (function () {
+'use strict';
+
+const D = window.Dati;
+
+/* Il progetto e la sua chiave pubblica. Stanno nell'HTML per costruzione:
+   da soli non aprono niente, le tabelle le apre solo un utente entrato con
+   un ruolo (le regole sono nel database). La chiave segreta non va mai qui. */
+const SERVER = 'https://chdjkvkvdqjikgiicduw.supabase.co';
+const CHIAVE = 'sb_publishable_PKJ8frS4fCY0Pl_4qrYyvw_DLqMoLSV';
+
+const K_SESSIONE = 'portachiavi3d.sessione';
+const K_STATO = 'portachiavi3d.sincro';
+/* Gli ordini che c'erano prima del collegamento, quando si sceglie di non
+   portarli sul server: non si buttano, si mettono da parte. */
+const K_PRIMA = 'portachiavi3d.ordini.prima';
+
+/* Ogni quanto si chiede al server se c'e' qualcosa di nuovo. Una scelta, non
+   una misura: un ordine preso al banco arriva sul Mac entro un quarto di
+   minuto, e con quattro dispositivi accesi otto ore al giorno sono circa
+   ottomila richieste quasi vuote, lontane dai 5 GB al mese del piano
+   gratuito. Si chiede solo a pagina visibile. */
+const POLL_MS = 15000;
+/* Quanto indietro si riguarda rispetto all'ultima ora vista. L'ora la mette
+   il database quando scrive, ma una scrittura lenta puo' finire dopo una
+   veloce partita dopo di lei: senza margine quella riga non arriverebbe
+   mai. Riprendere due volte la stessa riga non costa niente. */
+const MARGINE_MS = 30000;
+/* Gli ordini fatti da piu' di tanti giorni escono dalla copia locale e
+   restano sul server. Il localStorage di Safari tiene circa 5 MB, e un
+   ordine con le sue configurazioni pesa circa 1,4 kB (un portachiavi
+   «Anna», misurato sul JSON salvato): qualche migliaio di ordini, e senza
+   un taglio la copia crescerebbe fino a non poter piu' salvare. Una scelta: e' la
+   finestra in cui un cliente torna a chiedere di un ordine. */
+const GIORNI_FATTI = 60;
+
+let sessione = leggi(K_SESSIONE, null);
+let stato = Object.assign({ cursore: null, catVersione: 0, catDaInviare: false,
+                            uscita: {}, gen: 0 }, leggi(K_STATO, {}));
+let giro = null;                // la promessa del giro in corso, se c'e'
+let ancora = false;             // chiesto un giro mentre ne correva uno
+let spinta = null;              // il giro chiesto dopo una scrittura
+let ultimo = { quando: null, errore: null, rete: true };
+const ascoltatori = [];
+
+function leggi(k, ripiego) {
+  try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? ripiego : v; }
+  catch (e) { return ripiego; }
+}
+function scrivi(k, v) {
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {}
+}
+const salvaStato = () => scrivi(K_STATO, stato);
+
+function annuncia(cosa) {
+  ascoltatori.forEach(fn => { try { fn(cosa); } catch (e) {} });
+}
+
+/* ------------------------------------------------------------------ rete */
+
+class ErroreServer extends Error {
+  constructor(status, corpo) {
+    super((corpo && (corpo.message || corpo.msg || corpo.error_description || corpo.error)) ||
+          'Il server ha risposto ' + status);
+    this.status = status;
+    this.codice = corpo && corpo.code;
+  }
+}
+
+/* `anonimo` per le chiamate di Auth che vengono prima di avere un utente
+   (entrare, rinnovare): la chiave pubblica va solo in `apikey`, non e' un
+   gettone e come Bearer verrebbe rifiutata. */
+async function chiama(metodo, percorso, corpo, testa, anonimo) {
+  const h = Object.assign({ apikey: CHIAVE, 'Content-Type': 'application/json' }, testa || {});
+  delete h._riprova;
+  if (sessione && !anonimo) h.Authorization = 'Bearer ' + await gettone();
+  let r;
+  try {
+    r = await fetch(SERVER + percorso, {
+      method: metodo, headers: h, cache: 'no-store',
+      body: corpo === undefined ? undefined : JSON.stringify(corpo),
+    });
+  } catch (e) {
+    const err = new Error('Server non raggiungibile');
+    err.rete = true;
+    throw err;
+  }
+  const testo = await r.text();
+  let dati = null;
+  try { dati = testo ? JSON.parse(testo) : null; } catch (e) {}
+  /* Un 401 con un gettone ancora «valido» vuol dire che il server non lo
+     riconosce piu' (password cambiata, utente tolto): si rinnova una volta
+     e si riprova. Se anche il rinnovo e' rifiutato, gettone() segna la
+     sessione scaduta e la scheda Dispositivo chiede di rientrare. */
+  if (r.status === 401 && sessione && !anonimo && !(testa && testa._riprova)) {
+    sessione.scade = 0;
+    return chiama(metodo, percorso, corpo, Object.assign({}, testa, { _riprova: true }));
+  }
+  if (!r.ok) throw new ErroreServer(r.status, dati);
+  return dati;
+}
+
+/* --------------------------------------------------------------- accesso
+   La sessione di Supabase Auth: un gettone che scade dopo un'ora e uno per
+   rinnovarlo, che non scade ma si usa una volta sola. Il rinnovo passa da
+   una promessa sola: due richieste che lo chiedessero insieme userebbero
+   lo stesso gettone due volte, e la seconda chiuderebbe la sessione. */
+let rinnovo = null;
+
+function tieniSessione(r) {
+  sessione = {
+    accesso: r.access_token,
+    rinnovo: r.refresh_token,
+    scade: Date.now() + (r.expires_in || 3600) * 1000,
+    utente: r.user ? r.user.id : (sessione && sessione.utente),
+    email: r.user ? r.user.email : (sessione && sessione.email),
+    ruolo: sessione ? sessione.ruolo : null,
+  };
+  scrivi(K_SESSIONE, sessione);
+}
+
+async function gettone() {
+  if (sessione.scade - Date.now() > 60000) return sessione.accesso;
+  if (!rinnovo) rinnovo = (async () => {
+    try {
+      const r = await chiama('POST', '/auth/v1/token?grant_type=refresh_token',
+        { refresh_token: sessione.rinnovo }, null, true);
+      tieniSessione(r);
+    } catch (e) {
+      // un 4xx vuol dire che il rinnovo non vale piu': bisogna rientrare
+      if (e.status >= 400 && e.status < 500) {
+        sessione.scaduta = true;
+        scrivi(K_SESSIONE, sessione);
+      }
+      throw e;
+    } finally { rinnovo = null; }
+  })();
+  await rinnovo;
+  return sessione.accesso;
+}
+
+async function entra(email, password) {
+  sessione = null;
+  let r;
+  try {
+    r = await chiama('POST', '/auth/v1/token?grant_type=password', { email, password },
+                     null, true);
+  } catch (e) {
+    if (e.status === 400) throw new Error('Email o password sbagliate.');
+    throw e;
+  }
+  tieniSessione(r);
+  const p = await chiama('GET', '/rest/v1/profili?select=ruolo,nome&utente=eq.' + sessione.utente);
+  if (!p || !p.length) {
+    esci();
+    throw new Error('Questo utente non ha un ruolo: va aggiunto nella tabella profili.');
+  }
+  sessione.ruolo = p[0].ruolo;
+  sessione.nome = p[0].nome;
+  scrivi(K_SESSIONE, sessione);
+  return sessione;
+}
+
+/* Esce solo l'utente: la postazione resta, e con lei la numerazione. Gli
+   ordini presi intanto aspettano nella coda di uscita il prossimo accesso. */
+function esci() {
+  const s = sessione;
+  sessione = null;
+  try { localStorage.removeItem(K_SESSIONE); } catch (e) {}
+  if (s && s.accesso && !s.scaduta)
+    fetch(SERVER + '/auth/v1/logout', { method: 'POST',
+      headers: { apikey: CHIAVE, Authorization: 'Bearer ' + s.accesso } }).catch(() => {});
+  annuncia({ stato: true });
+}
+
+/* ----------------------------------------------------------- postazioni */
+
+async function postazioni() {
+  return chiama('GET', '/rest/v1/postazioni?select=lettera,nome&order=lettera');
+}
+
+/* L'ultimo numero dato dalla lettera, a guardare il server: serve quando si
+   riprende una postazione su un tablet rimesso a nuovo, che non sa piu'
+   fin dove era arrivato. Per data e non per numero: «A-1000» viene prima
+   di «A-999» in ordine alfabetico. */
+async function ultimoDelServer(lettera) {
+  const r = await chiama('GET', '/rest/v1/ordini?select=numero&postazione=eq.' + lettera +
+                                '&order=quando.desc&limit=50');
+  return (r || []).reduce((m, x) => Math.max(m, D.progressivo(x.numero, lettera)), 0);
+}
+
+/* Il collegamento, dalla scheda Dispositivo, dopo essere entrati (entra):
+   prendere la lettera, dare la sigla agli ordini di qui, poi il primo giro.
+   Il catalogo del server vince su quello del tablet, tranne la prima volta
+   in assoluto, quando sul server non c'e' ancora e lo porta questo. Una
+   lettera gia' presa si riprende: e' il tablet rimesso a nuovo. */
+async function collega({ lettera, nome, portaOrdini }) {
+  if (!sessione) throw new Error('Prima bisogna entrare.');
+  /* Una postazione gia' fatta non si rifa': ripartire da capo
+     azzererebbe la coda di uscita, cioe' gli ordini presi senza rete. */
+  if (D.postazione()) { annuncia({ stato: true }); return sincronizza(); }
+  if (!/^[A-Z]$/.test(lettera || '')) throw new Error('Scegli una lettera per la postazione.');
+  await chiama('POST', '/rest/v1/postazioni', { lettera, nome: nome || '' },
+               { Prefer: 'resolution=ignore-duplicates,return=minimal' });
+  if (nome) await chiama('PATCH', '/rest/v1/postazioni?lettera=eq.' + lettera, { nome },
+                         { Prefer: 'return=minimal' });
+  const ultimoServer = await ultimoDelServer(lettera);
+
+  if (!portaOrdini) {
+    const prima = D.leggiOrdini();
+    if (prima.length) scrivi(K_PRIMA, prima);
+    D.grezzo.scriviOrdini([]);
+  }
+  const convertiti = D.impostaPostazione(lettera, ultimoServer);
+  if (convertiti === null) throw new Error('Non riesco a salvare la postazione su questo dispositivo.');
+  stato = { cursore: null, catVersione: 0, catDaInviare: false, uscita: {}, gen: 0 };
+  if (portaOrdini) D.leggiOrdini().forEach(o => segna(o.numero, ['nuovo']));
+  salvaStato();
+  annuncia({ stato: true });
+  return sincronizza();
+}
+
+const collegato = () => !!(sessione && !sessione.scaduta && D.postazione());
+
+/* --------------------------------------------------------- coda di uscita
+   Per ogni ordine si ricorda cosa e' cambiato, non il contenuto: al momento
+   di inviare si rilegge l'ordine com'e' adesso. `gen` dice se nel frattempo
+   e' cambiato ancora: in quel caso la voce resta per il giro dopo. */
+function segna(numero, campi) {
+  const k = String(numero);
+  const v = stato.uscita[k] || { campi: [] };
+  if (campi.includes('eliminato') && v.campi.includes('nuovo')) {
+    // mai arrivato sul server: basta dimenticarlo
+    delete stato.uscita[k];
+  } else {
+    v.campi = [...new Set(v.campi.concat(campi))];
+    v.gen = ++stato.gen;
+    stato.uscita[k] = v;
+  }
+  salvaStato();
+}
+
+D.osserva((cosa) => {
+  if (!D.postazione()) return;
+  if (cosa.catalogo) { stato.catDaInviare = true; salvaStato(); }
+  if (cosa.ordine != null) segna(cosa.ordine, cosa.campi || ['dati']);
+  annuncia({ stato: true });
+  // una scrittura parte subito, ma un tocco dopo l'altro fa un giro solo
+  clearTimeout(spinta);
+  spinta = setTimeout(() => sincronizza(), 400);
+});
+
+const inAttesa = () => Object.keys(stato.uscita).length + (stato.catDaInviare ? 1 : 0);
+
+/* Per confrontare un ordine di qui con quello tornato dal server. jsonb
+   riordina le chiavi, quindi due JSON.stringify dello stesso ordine
+   differiscono: senza chiavi in fila ogni riga ripresa nel margine
+   sembrerebbe cambiata, e l'elenco si ridisegnerebbe a ogni giro. */
+function impronta(x) {
+  if (Array.isArray(x)) return '[' + x.map(impronta).join(',') + ']';
+  if (x && typeof x === 'object')
+    return '{' + Object.keys(x).filter(k => x[k] !== undefined).sort()
+      .map(k => JSON.stringify(k) + ':' + impronta(x[k])).join(',') + '}';
+  return JSON.stringify(x);
+}
+
+/* Una riga della tabella ordini a partire dall'ordine del chiosco. */
+function riga(o) {
+  const dati = Object.assign({}, o);
+  delete dati.numero; delete dati.stato;
+  const e = o.etichette || {};
+  return {
+    numero: String(o.numero), postazione: D.postazione(), tipo: o.tipo || 'portachiavi',
+    stato: o.stato, cliente: o.cliente || '',
+    totale: e.prezzo == null || isNaN(Number(e.prezzo)) ? null : Number(e.prezzo),
+    quando: o.quando, dati,
+  };
+}
+const soloDati = (r) => ({ dati: r.dati, cliente: r.cliente, totale: r.totale, tipo: r.tipo });
+
+async function inviaCatalogo(avvisi) {
+  const dati = D.grezzo.catalogo();
+  if (!dati) { stato.catDaInviare = false; return; }
+  try {
+    const r = await chiama('PATCH', '/rest/v1/catalogo?id=eq.1&versione=eq.' + stato.catVersione,
+      { dati, versione: stato.catVersione + 1 }, { Prefer: 'return=representation' });
+    if (r && r.length) stato.catVersione = r[0].versione;
+    else {
+      // qualcuno l'ha salvato dopo che questo tablet l'aveva letto
+      stato.catVersione = -1;
+      avvisi.push('Il catalogo era stato cambiato su un altro dispositivo: resta quello, ' +
+                  'le modifiche fatte qui non sono state salvate.');
+    }
+  } catch (e) {
+    if (e.status !== 403 && e.codice !== '42501') throw e;
+    stato.catVersione = -1;
+    avvisi.push('Misure, listini e prezzi li cambia solo l’amministratore: ' +
+                'il catalogo resta quello di prima.');
+  }
+  stato.catDaInviare = false;
+  salvaStato();
+}
+
+async function inviaOrdine(k, v, avvisi) {
+  const o = D.trova(k);
+  if (v.campi.includes('eliminato')) {
+    await chiama('PATCH', '/rest/v1/ordini?numero=eq.' + encodeURIComponent(k),
+                 { eliminato: true }, { Prefer: 'return=minimal' });
+    return;
+  }
+  if (!o) return;                  // uscito dalla copia locale: niente da dire
+  const r = riga(o);
+  if (v.campi.includes('nuovo')) {
+    try {
+      await chiama('POST', '/rest/v1/ordini', r, { Prefer: 'return=minimal' });
+    } catch (e) {
+      if (e.status !== 409) throw e;
+      /* Il numero c'e' gia'. Se e' lo stesso ordine (la risposta era andata
+         persa) va bene cosi'; se e' un altro, i due tablet hanno la stessa
+         lettera, ed e' un guaio da far vedere, non da nascondere. */
+      const s = await chiama('GET', '/rest/v1/ordini?select=quando&numero=eq.' + encodeURIComponent(k));
+      const stesso = s && s[0] && new Date(s[0].quando).getTime() === new Date(o.quando).getTime();
+      if (!stesso) {
+        /* Tenerlo fermo in coda vorrebbe dire riprovare e riavvisare per
+           sempre: si sposta al primo numero libero e riparte da li'. */
+        const alto = await ultimoDelServer(D.postazione());
+        D.grezzo.fissaContatore(Math.max(D.grezzo.contatore(), alto));
+        const nuovo = D.grezzo.rinumera(k);
+        if (!nuovo) return 'tieni';
+        stato.uscita[nuovo] = { campi: ['nuovo'], gen: ++stato.gen };
+        delete stato.uscita[k];
+        salvaStato();
+        avvisi.push('Il numero ' + k + ' era già di un altro ordine sul server: questo ' +
+                    'ora è il ' + nuovo + '. Succede quando due dispositivi hanno la stessa ' +
+                    'lettera di postazione: va corretto.');
+        return 'spostato';
+      }
+      await chiama('PATCH', '/rest/v1/ordini?numero=eq.' + encodeURIComponent(k),
+                   { stato: r.stato, ...soloDati(r) }, { Prefer: 'return=minimal' });
+    }
+    return;
+  }
+  const cambi = {};
+  if (v.campi.includes('stato')) cambi.stato = r.stato;
+  if (v.campi.includes('dati')) Object.assign(cambi, soloDati(r));
+  await chiama('PATCH', '/rest/v1/ordini?numero=eq.' + encodeURIComponent(k), cambi,
+               { Prefer: 'return=minimal' });
+}
+
+/* Gli ordini nuovi partono a gruppi: al primo collegamento un tablet puo'
+   averne centinaia, e uno per richiesta sarebbero minuti. Se un gruppo
+   trova un numero gia' preso si ripiega sull'invio uno per uno, che sa
+   distinguere lo stesso ordine da un doppione. */
+async function inviaNuovi(avvisi) {
+  const nuovi = Object.keys(stato.uscita).filter(k => {
+    const v = stato.uscita[k];
+    return v.campi.includes('nuovo') && !v.campi.includes('eliminato') && D.trova(k);
+  });
+  const GRUPPO = 100;
+  for (let i = 0; i < nuovi.length; i += GRUPPO) {
+    const parte = nuovi.slice(i, i + GRUPPO).map(k => ({ k, gen: stato.uscita[k].gen }));
+    try {
+      await chiama('POST', '/rest/v1/ordini', parte.map(x => riga(D.trova(x.k))),
+                   { Prefer: 'return=minimal' });
+    } catch (e) {
+      if (e.status === 409) continue;          // ci pensa il giro uno per uno
+      throw e;
+    }
+    for (const x of parte)
+      if (stato.uscita[x.k] && stato.uscita[x.k].gen === x.gen) delete stato.uscita[x.k];
+    salvaStato();
+  }
+}
+
+async function invia(avvisi) {
+  if (stato.catDaInviare && stato.catVersione > 0) await inviaCatalogo(avvisi);
+  await inviaNuovi(avvisi);
+  for (const k of Object.keys(stato.uscita)) {
+    const v = stato.uscita[k];
+    const gen = v.gen;
+    const esito = await inviaOrdine(k, v, avvisi);
+    if (esito === 'spostato') ancora = true;
+    if (esito === 'tieni' || esito === 'spostato') continue;
+    if (stato.uscita[k] && stato.uscita[k].gen === gen) delete stato.uscita[k];
+    salvaStato();
+  }
+}
+
+/* ---------------------------------------------------------------- ricevi */
+
+async function riceviCatalogo(cambiato) {
+  const r = await chiama('GET', '/rest/v1/catalogo?id=eq.1&select=dati,versione');
+  if (!r || !r.length) {
+    // il primo dispositivo in assoluto: il catalogo lo porta lui
+    const dati = D.grezzo.catalogo() || D.leggiCatalogo();
+    try {
+      await chiama('POST', '/rest/v1/catalogo', { id: 1, dati, versione: 1 },
+                   { Prefer: 'return=minimal' });
+      stato.catVersione = 1;
+      stato.catDaInviare = false;
+    } catch (e) {
+      if (e.status !== 409) throw e;   // un altro e' arrivato un attimo prima
+      stato.catVersione = -1;
+    }
+    return;
+  }
+  if (r[0].versione === stato.catVersione) return;
+  /* Una modifica di qui in attesa si tiene, e parte al giro dopo: tranne
+     quando la versione di partenza non si sa (il primo giro, o dopo uno
+     scontro). Allora non c'e' niente su cui appoggiarla, e vince il server. */
+  if (stato.catDaInviare && stato.catVersione > 0) return;
+  stato.catDaInviare = false;
+  D.grezzo.scriviCatalogo(r[0].dati);
+  stato.catVersione = r[0].versione;
+  cambiato.catalogo = true;
+}
+
+async function riceviOrdini(cambiato) {
+  let da = stato.cursore;
+  let filtro;
+  if (da) {
+    filtro = '&aggiornato_il=gte.' + encodeURIComponent(
+      new Date(new Date(da).getTime() - MARGINE_MS).toISOString());
+  } else {
+    // la prima volta: niente cancellati, e dei fatti solo quelli recenti
+    // fra virgolette: nel filtro composto punti e due punti sono separatori
+    const soglia = new Date(Date.now() - GIORNI_FATTI * 864e5).toISOString();
+    filtro = '&eliminato=is.false&or=' +
+      encodeURIComponent('(stato.neq.fatto,quando.gte."' + soglia + '")');
+  }
+
+  /* Prima si scarica tutto, poi si fonde senza piu' attese in mezzo: fra la
+     lettura della copia locale e la sua riscrittura non deve passare
+     nessuna risposta di rete, senno' un ordine preso intanto al banco
+     verrebbe sovrascritto dalla lista letta prima. */
+  const arrivate = [];
+  const PAGINA = 500;
+  for (let dal = 0; ; dal += PAGINA) {
+    const righe = await chiama('GET', '/rest/v1/ordini?select=*' + filtro +
+      '&order=aggiornato_il.asc,numero.asc&limit=' + PAGINA + '&offset=' + dal);
+    arrivate.push(...(righe || []));
+    if (!righe || righe.length < PAGINA) break;
+  }
+  let nuovoCursore = da;
+  for (const x of arrivate)
+    if (!nuovoCursore || x.aggiornato_il > nuovoCursore) nuovoCursore = x.aggiornato_il;
+  /* Il primo giro non trova niente se il server e' vuoto: il cursore parte
+     comunque, dall'ora del server, senno' si rifarebbe la prima volta a
+     ogni giro. */
+  if (!nuovoCursore) nuovoCursore = await chiama('POST', '/rest/v1/rpc/veglia', {});
+
+  // da qui in fondo niente await
+  const tutti = D.leggiOrdini();
+  const perNumero = new Map(tutti.map((o, i) => [String(o.numero), i]));
+  const togli = new Set();
+  for (const x of arrivate) {
+    // quello che aspetta di partire da qui vince finche' non e' partito
+    if (stato.uscita[x.numero]) continue;
+    const i = perNumero.get(x.numero);
+    if (x.eliminato) {
+      if (i != null) { togli.add(x.numero); cambiato.ordini = true; }
+      continue;
+    }
+    const o = Object.assign({}, x.dati, { numero: x.numero, stato: x.stato });
+    if (i == null) {
+      perNumero.set(x.numero, tutti.length);
+      tutti.push(o);
+      cambiato.ordini = true;
+    } else if (impronta(tutti[i]) !== impronta(o)) {
+      tutti[i] = o;
+      cambiato.ordini = true;
+    }
+  }
+  stato.cursore = nuovoCursore;
+
+  const soglia = Date.now() - GIORNI_FATTI * 864e5;
+  const restano = tutti.filter(o => {
+    const k = String(o.numero);
+    if (togli.has(k)) return false;
+    if (stato.uscita[k]) return true;
+    return !(o.stato === 'fatto' && new Date(o.quando).getTime() < soglia);
+  });
+  if (restano.length !== tutti.length) cambiato.ordini = true;
+  if (cambiato.ordini) {
+    restano.sort((a, b) => String(a.quando).localeCompare(String(b.quando)));
+    D.grezzo.scriviOrdini(restano);
+  }
+}
+
+/* ------------------------------------------------------------------ giro */
+
+/* Un giro alla volta. Chi lo chiede mentre ne corre uno non puo' accodarsi
+   a quello: la sua modifica e' arrivata dopo che il giro aveva gia' letto
+   la coda, e aspetterebbe il prossimo intervallo. Se ne fa un altro subito
+   dopo. */
+function sincronizza() {
+  if (!collegato()) return Promise.resolve(null);
+  if (giro) { ancora = true; return giro; }
+  giro = (async () => {
+    const cambiato = { ordini: false, catalogo: false };
+    const avvisi = [];
+    try {
+      await invia(avvisi);
+      await riceviCatalogo(cambiato);
+      await riceviOrdini(cambiato);
+      ultimo = { quando: new Date().toISOString(), errore: null, rete: true };
+      chiama('PATCH', '/rest/v1/postazioni?lettera=eq.' + D.postazione(),
+             { visto_il: ultimo.quando }, { Prefer: 'return=minimal' }).catch(() => {});
+    } catch (e) {
+      ultimo = { quando: ultimo.quando, errore: e.message, rete: !e.rete };
+    } finally {
+      salvaStato();
+      giro = null;
+    }
+    if (ancora) { ancora = false; setTimeout(() => sincronizza(), 0); }
+    annuncia(Object.assign({ stato: true, avvisi }, cambiato));
+    return cambiato;
+  })();
+  return giro;
+}
+
+function descrivi() {
+  return {
+    collegato: collegato(),
+    entrato: !!sessione,
+    postazione: D.postazione(),
+    email: sessione && sessione.email,
+    ruolo: sessione && sessione.ruolo,
+    scaduta: !!(sessione && sessione.scaduta),
+    inAttesa: inAttesa(),
+    ultimaVolta: ultimo.quando,
+    errore: ultimo.errore,
+    senzaRete: !ultimo.rete,
+    inCorso: !!giro,
+    primaDelCollegamento: (leggi(K_PRIMA, []) || []).length,
+  };
+}
+
+function quandoCambia(fn) { ascoltatori.push(fn); }
+
+let avviato = false;
+function avvia() {
+  if (avviato) return;
+  avviato = true;
+  setInterval(() => {
+    if (document.visibilityState === 'visible') sincronizza();
+  }, POLL_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') sincronizza();
+  });
+  window.addEventListener('online', () => sincronizza());
+  sincronizza();
+}
+
+return {
+  collega, entra, esci, postazioni, sincronizza, avvia, quandoCambia,
+  collegato, stato: descrivi,
+  ruolo: () => (sessione && sessione.ruolo) || null,
+  ordiniPrima: () => leggi(K_PRIMA, []),
+  POLL_MS,
 };
 })();
 
@@ -13477,6 +14207,7 @@ function scegliTipo(t) {
 }
 
 function ricomincia() {
+  if (catalogoNuovo) { cat = D.leggiCatalogo(); catalogoNuovo = false; }
   scelta = sceltaIniziale();
   ultimo = null;
   scegliTipo(null);
@@ -13544,11 +14275,14 @@ function apriOperatore() {
   $('#opSchede').hidden = false;
   $('#opTitolo').textContent = 'Operatore';
   disegnaOperatore();
+  Sincro.sincronizza();
+  setTimeout(() => { if (avvisiSincro.length) avvisa(avvisiSincro.splice(0).join('\n\n')); }, 50);
 }
 
 function chiudiOperatore() {
   $('#operatore').hidden = true;
   cat = D.leggiCatalogo();
+  catalogoNuovo = false;
   scordaTutto();
   /* Il catalogo puo' essere cambiato mentre l'operatore era dentro: quello
      che il cliente aveva scelto potrebbe non esistere piu'. Si ricontrolla
@@ -13578,11 +14312,32 @@ function disegnaOperatore() {
   $$('.opTipo').forEach(b =>
     b.setAttribute('aria-pressed', String(b.dataset.optipo === opTipo)));
   const M = modulo(opTipo);
+  $('#opNovita').hidden = true;
   if (opScheda === 'ordini')        $('#opCorpo').innerHTML = vistaOrdini();
   else if (opScheda === 'stampa')   $('#opCorpo').innerHTML =
       M ? M.vistaLavorazioni() : vistaStampa();
   else if (opScheda === 'catalogo') $('#opCorpo').innerHTML = vistaCatalogo();
   else                              $('#opCorpo').innerHTML = vistaDispositivo();
+  if (opScheda === 'catalogo' && Sincro.ruolo() === 'chiosco') chiudiPrezzi();
+  if (opScheda === 'dispositivo') riempiPostazioni();
+  aggiornaSincro();
+}
+
+/* Misure, listini, taglie e valuta sono dell'amministratore: il database
+   rifiuta un catalogo in cui il chiosco li ha cambiati (supabase/schema.sql,
+   custodisci_prezzi). Qui si spengono i campi, cosi' non si scopre il no
+   solo dopo aver salvato. Le misure dei portachiavi si spengono intere:
+   anche il nome e i millimetri stanno nella stessa lista. */
+const CAMPI_PREZZO = '#listaMisure input, #listaMisure button, [data-aggiungi="misura"], ' +
+  '[data-gen="valuta"], [data-gen="mostraPrezzi"], #listaListino input, #listaListino button, ' +
+  '[data-aggiungim="lis"], [data-tag], [data-toglib="tag"], [data-aggiungib="tag"]';
+
+function chiudiPrezzi() {
+  const campi = $$(CAMPI_PREZZO);
+  if (!campi.length) return;
+  campi.forEach(el => { el.disabled = true; });
+  $('#opCorpo').insertAdjacentHTML('afterbegin', '<div class="avviso">Misure, ' +
+    'listini e prezzi li cambia l’amministratore: qui si vedono ma non si toccano.</div>');
 }
 
 /* ------------------------------------------------------------- gli ordini */
@@ -13669,7 +14424,7 @@ const eportachiavi = (o) => !!o && o.tipo === 'portachiavi';
 /* Il contenuto si costruisce solo quando la riga viene aperta: con cento
    ordini in coda ricalcolare tutto in anticipo bloccherebbe il tablet. */
 function riempiOrdine(numero) {
-  const o = D.leggiOrdini().find(x => x.numero === numero);
+  const o = D.trova(numero);
   const dove = $('.dentro[data-corpo="' + numero + '"]');
   if (!o || !dove || dove.dataset.costruito) return;
   if (modulo(o.tipo)) {
@@ -13774,7 +14529,7 @@ function opzioniSolido(o) {
 }
 
 function scaricaOrdine(numero, quali) {
-  const o = D.leggiOrdini().find(x => x.numero === numero);
+  const o = D.trova(numero);
   if (!eportachiavi(o)) return;
   const g = costruisci(o.cfg);
   if (g.errore) { alert(g.errore); return; }
@@ -13834,8 +14589,10 @@ function vistaCatalogo() {
     'min="' + min + '" max="' + max + '" step="' + passo + '" value="' +
     (dove ? dove[k] : R[k]) + '"></label>';
 
-  return '<div class="avviso">Le modifiche valgono da subito su questo ' +
-    'dispositivo. Per portarle su un altro tablet usa <b>Dispositivo → Esporta</b>.</div>' +
+  return '<div class="avviso">' + (Sincro.collegato()
+    ? 'Le modifiche valgono da subito qui e arrivano da sole sugli altri dispositivi collegati.'
+    : 'Le modifiche valgono da subito su questo dispositivo. Per portarle su un altro ' +
+      'tablet usa <b>Dispositivo → Esporta</b>.') + '</div>' +
 
     '<div class="sezione"><h3>Colori</h3>' +
     '<p>Quelli che hai davvero in casa. Il nome è quello che legge il cliente.</p>' +
@@ -14079,7 +14836,7 @@ function vistaStampa() {
 
 function segnaStampati(numeri) {
   numeri.forEach(n => {
-    const o = D.leggiOrdini().find(x => x.numero === n);
+    const o = D.trova(n);
     if (o && o.stato === 'pronto') D.modificaOrdine(n, { stato: 'fatto' });
   });
   disegnaOperatore();
@@ -14305,8 +15062,13 @@ function vistaDispositivo() {
   const suoi = o.filter(x => x.tipo === opTipo);
   const pronti = suoi.filter(x => x.stato === 'pronto').length;
   const daControllare = suoi.filter(x => x.stato === 'da controllare').length;
+  const S = Sincro.stato();
+  /* I conti sono dell'amministratore: il chiosco vede il prezzo di ogni
+     ordine, che serve a farsi pagare al banco, ma non il riepilogo. */
+  const conti = S.ruolo !== 'chiosco';
 
-  return '<div class="sezione"><h3>Esportare per la stampa</h3>' +
+  return sezioneCollegamento() +
+    '<div class="sezione"><h3>Esportare per la stampa</h3>' +
     (opTipo === 'barattolo'
       ? '<p>Un archivio con una cartella per ordine. In ognuna ci sono ' +
         '<b>tutti e due i formati</b>: il file unico a colori, per la carta, ' +
@@ -14358,18 +15120,22 @@ function vistaDispositivo() {
     '<div class="fila">' +
     '<button type="button" class="bottone piccolo" data-esporta="1">Copia di sicurezza (' + o.length + ' ordini)</button>' +
     '<button type="button" class="bottone piccolo" data-importa="unisci">Importa e aggiungi</button>' +
-    '<button type="button" class="bottone piccolo" data-importa="sostituisci">Importa e sostituisci</button>' +
+    /* Collegati, sostituire e cancellare riguarderebbero solo la copia di
+       questo tablet, e il giro dopo la riporterebbe com'era: sembrerebbero
+       funzionare e non farebbero niente. */
+    (S.postazione ? '' :
+      '<button type="button" class="bottone piccolo" data-importa="sostituisci">Importa e sostituisci</button>') +
     '</div></div>' +
 
-    '<div class="sezione"><h3>Riepilogo per i conti</h3>' +
+    (conti ? '<div class="sezione"><h3>Riepilogo per i conti</h3>' +
     '<p>Tutti gli ordini in una tabella, da aprire in Numbers o Excel. È solo ' +
     'da leggere: per rimettere i dati dentro serve la copia di sicurezza.</p>' +
     '<button type="button" class="bottone piccolo" data-csv="1">Scarica l’elenco (' +
-    o.length + ')</button></div>' +
+    o.length + ')</button></div>' : '') +
 
-    '<div class="sezione"><h3>Pulizia</h3>' +
+    (S.postazione ? '' : '<div class="sezione"><h3>Pulizia</h3>' +
     '<p>Da fare a fine giornata, dopo aver esportato.</p>' +
-    '<button type="button" class="bottone piccolo" data-azzera="ordini">Cancella tutti gli ordini</button></div>' +
+    '<button type="button" class="bottone piccolo" data-azzera="ordini">Cancella tutti gli ordini</button></div>') +
 
     '<div class="sezione"><h3>Prima di lasciarlo al pubblico</h3>' +
     '<p>Il codice operatore tiene lontano un cliente curioso, ma non è una ' +
@@ -14377,6 +15143,177 @@ function vistaDispositivo() {
     'Per bloccare davvero il tablet su questa pagina usa <b>Accesso Guidato</b> ' +
     '(Impostazioni → Accessibilità → Accesso Guidato), che è la funzione di iOS ' +
     'fatta apposta.</p></div>';
+}
+
+/* ------------------------------------------------------- il collegamento
+   Il chiosco funziona anche scollegato, com'era prima: il collegamento si
+   fa una volta per tablet, da qui, e da li' in poi resta. La lettera della
+   postazione entra nei numeri degli ordini (A-001), per questo si sceglie
+   una volta sola. */
+
+const LETTERE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+function oraSincro(iso) {
+  if (!iso) return 'mai';
+  const d = new Date(iso);
+  return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function statoSincroHTML(S) {
+  if (!S.collegato) return '';
+  return '<p>Postazione <b>' + esc(S.postazione) + '</b> · ' + esc(S.email || '') +
+    ' (' + esc(S.ruolo || '') + ')</p>' +
+    '<p class="sotto">Ultimo scambio col server: ' + oraSincro(S.ultimaVolta) +
+    (S.inAttesa ? ' · <b>' + S.inAttesa + '</b> modifiche in attesa di partire' : ' · tutto inviato') +
+    '</p>' +
+    (S.errore ? '<div class="avviso errore">' + (S.senzaRete
+      ? 'Il server non risponde. Il chiosco continua a lavorare: quello che ' +
+        'succede qui parte appena torna la rete.'
+      : 'Il server ha risposto con un errore: ' + esc(S.errore)) + '</div>' : '');
+}
+
+function sezioneCollegamento() {
+  const S = Sincro.stato();
+  const locali = D.leggiOrdini().length;
+  const accesso = (pulsante) =>
+    '<form class="accesso" data-accesso="1">' +
+    '<div class="griglia2">' +
+    '<label class="campo">Email<input type="email" id="sEmail" autocomplete="username" ' +
+      'autocapitalize="off" value="' + esc(S.email || '') + '"></label>' +
+    '<label class="campo">Password<input type="password" id="sPassword" ' +
+      'autocomplete="current-password"></label>' +
+    '</div><div class="fila"><button type="submit" class="bottone forte">' + pulsante +
+    '</button></div></form>';
+
+  if (S.collegato) return '<div class="sezione"><h3>Collegamento</h3>' +
+    '<div id="statoSincro">' + statoSincroHTML(S) + '</div>' +
+    '<div class="fila">' +
+    '<button type="button" class="bottone piccolo" data-sincronizza="1">Sincronizza adesso</button>' +
+    '<button type="button" class="bottone piccolo" data-esci="1">Esci</button>' +
+    '</div></div>';
+
+  // la postazione c'e' ma l'utente no: si rientra e basta
+  if (S.postazione) return '<div class="sezione"><h3>Collegamento</h3>' +
+    '<div class="avviso errore">Postazione <b>' + esc(S.postazione) + '</b>, ma ' +
+    (S.scaduta ? 'l’accesso è scaduto' : 'nessuno è entrato') + ': ' +
+    (S.inAttesa ? '<b>' + S.inAttesa + '</b> modifiche aspettano di partire. ' : '') +
+    'Il chiosco lavora lo stesso, ma gli altri dispositivi non vedono niente.</div>' +
+    accesso('Entra') + '</div>';
+
+  if (!S.entrato) return '<div class="sezione"><h3>Collegamento</h3>' +
+    '<p>Collegando il tablet al server, gli ordini presi qui arrivano sugli altri ' +
+    'dispositivi e quelli degli altri arrivano qui, insieme al catalogo. Il chiosco ' +
+    'continua a funzionare anche senza rete: quello che succede intanto parte ' +
+    'appena la rete torna.</p>' + accesso('Entra') + '</div>';
+
+  return '<div class="sezione"><h3>Collegamento</h3>' +
+    '<p>Sei entrato come <b>' + esc(S.email || '') + '</b>. Ora scegli la ' +
+    '<b>lettera di questa postazione</b>: i suoi ordini si chiameranno A-001, ' +
+    'A-002… e non si scontrano mai con quelli degli altri tablet, anche senza rete. ' +
+    'Si sceglie una volta sola.</p>' +
+    '<div id="listaPostazioni" class="sotto">Leggo le postazioni che ci sono già…</div>' +
+    '<div class="griglia2">' +
+    '<label class="campo">Lettera<select id="sLettera">' +
+      LETTERE.map(l => '<option value="' + l + '">' + l + '</option>').join('') +
+    '</select></label>' +
+    '<label class="campo">Nome<input type="text" id="sNome" placeholder="per esempio iPad banco"></label>' +
+    '</div>' +
+    (locali ? '<label class="opzione"><input type="checkbox" id="sPorta" checked>' +
+      '<span>Porta sul server i <b>' + locali + '</b> ordini che ci sono già qui. ' +
+      '<i>Togli la spunta se su questo dispositivo sono arrivati solo con una ' +
+      'copia di sicurezza: sono già sul tablet che li ha presi. Non si perdono, ' +
+      'restano da parte.</i></span></label>' : '') +
+    '<p class="sotto">Il catalogo che conta è quello del server. Solo per il primo ' +
+    'dispositivo in assoluto è il contrario: il server è vuoto, e il catalogo lo porta lui.</p>' +
+    '<div class="fila">' +
+    '<button type="button" class="bottone forte" data-collega="1">Collega questa postazione</button>' +
+    '<button type="button" class="bottone piccolo" data-esci="1">Annulla</button>' +
+    '</div></div>';
+}
+
+/* La lista delle postazioni arriva dalla rete, dopo che la scheda e' gia'
+   disegnata: si scrive nel suo posto, se c'e' ancora. */
+async function riempiPostazioni() {
+  const dove = $('#listaPostazioni');
+  if (!dove) return;
+  let lista;
+  try { lista = await Sincro.postazioni(); }
+  catch (e) { dove.textContent = 'Non riesco a leggere le postazioni: ' + e.message; return; }
+  if (!$('#listaPostazioni')) return;
+  const prese = new Map((lista || []).map(p => [p.lettera, p.nome]));
+  dove.innerHTML = prese.size
+    ? 'Già usate: ' + [...prese].map(([l, n]) => '<b>' + esc(l) + '</b>' +
+        (n ? ' «' + esc(n) + '»' : '')).join(', ') +
+      '. Scegline una già usata solo se questo è proprio quel dispositivo, rimesso a nuovo.'
+    : 'Nessuna postazione ancora: questa è la prima.';
+  const sel = $('#sLettera');
+  if (sel) {
+    sel.value = LETTERE.find(l => !prese.has(l)) || 'A';
+    [...sel.options].forEach(op => {
+      if (prese.has(op.value)) op.textContent = op.value + ' — già di «' + (prese.get(op.value) || '?') + '»';
+    });
+  }
+}
+
+/* Il pallino in testata all'operatore: dice a colpo d'occhio se il tablet
+   parla col server. Sul lato cliente non si vede niente. */
+function aggiornaSincro() {
+  const el = $('#opSincro');
+  if (!el) return;
+  const S = Sincro.stato();
+  if (!S.postazione && !S.entrato) { el.hidden = true; return; }
+  el.hidden = false;
+  let v, t;
+  if (!S.collegato) { v = 'fermo'; t = S.scaduta ? 'accesso scaduto' : 'non collegato'; }
+  else if (S.errore) { v = 'errore'; t = S.senzaRete ? 'senza rete' : 'errore del server'; }
+  else if (S.inAttesa) { v = 'attesa'; t = S.inAttesa + ' in attesa'; }
+  else { v = 'ok'; t = 'sincronizzato'; }
+  el.dataset.v = v;
+  el.textContent = (S.postazione ? S.postazione + ' · ' : '') + t;
+  const st = $('#statoSincro');
+  if (st) st.innerHTML = statoSincroHTML(S);
+}
+
+async function azioneCollegamento(fai) {
+  try { await fai(); }
+  catch (e) { avvisa(e.message || String(e)); }
+  cat = D.leggiCatalogo();
+  aggiornaSincro();
+  if (!$('#operatore').hidden && opScheda === 'dispositivo') {
+    disegnaOperatore();
+    riempiPostazioni();
+  }
+}
+
+/* Quello che arriva dal server mentre il chiosco lavora. Il cliente non
+   deve accorgersi di niente: un catalogo nuovo si prende quando nessuno sta
+   scegliendo, o alla prossima ripartenza. L'operatore invece vede subito,
+   tranne quando sta lavorando dentro un ordine aperto o un campo: li'
+   ridisegnare gli toglierebbe il lavoro da sotto le dita, e compare un
+   bottone per aggiornare quando vuole. */
+let catalogoNuovo = false;
+const avvisiSincro = [];
+
+function operatoreOccupato() {
+  const a = document.activeElement;
+  return opScheda === 'catalogo' || !!$('.ordine[open]') ||
+    !!(a && $('#opCorpo').contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName));
+}
+
+function quandoArrivaQualcosa(cosa) {
+  aggiornaSincro();
+  if (cosa.avvisi && cosa.avvisi.length) avvisiSincro.push(...cosa.avvisi);
+  if (cosa.catalogo) {
+    if ($('#operatore').hidden && tipo === null) {
+      cat = D.leggiCatalogo(); disegnaPannello(); disegna();
+    } else catalogoNuovo = true;
+  }
+  if ($('#operatore').hidden) return;
+  if (avvisiSincro.length) avvisa(avvisiSincro.splice(0).join('\n\n'));
+  if (!cosa.ordini && !cosa.catalogo) return;
+  piano = null;                  // il piano di stampa e' degli ordini di prima
+  if (operatoreOccupato()) $('#opNovita').hidden = false;
+  else disegnaOperatore();
 }
 
 function chiediFile(modo) {
@@ -14486,14 +15423,14 @@ function collega() {
     const t = ev.target;
 
     const sc = t.closest('[data-scarica]');
-    if (sc) return scaricaOrdine(Number(sc.dataset.n), sc.dataset.scarica);
+    if (sc) return scaricaOrdine(sc.dataset.n, sc.dataset.scarica);
 
     /* I file di un lato di maglietta. Sono piu' d'uno, e escono in fila uno
        dopo l'altro: sono piccoli, e un archivio per due file sarebbe piu'
        scomodo da aprire che comodo da scaricare. */
     const sm = t.closest('[data-scaricam]');
     if (sm) {
-      const o = D.leggiOrdini().find(x => x.numero === Number(sm.dataset.n));
+      const o = D.trova(sm.dataset.n);
       if (!o) return;
       const M = modulo(o.tipo);
       if (!M) return;
@@ -14510,8 +15447,8 @@ function collega() {
     const pr = t.closest('label.spunta[data-pronto]');
     if (pr) {
       ev.preventDefault();
-      const n = Number(pr.dataset.pronto);
-      const o = D.leggiOrdini().find(x => x.numero === n);
+      const n = pr.dataset.pronto;
+      const o = D.trova(n);
       if (o) D.modificaOrdine(n,
         { stato: o.stato === 'da controllare' ? 'pronto' : 'da controllare' });
       return disegnaOperatore();
@@ -14521,8 +15458,8 @@ function collega() {
 
     const sp = t.closest('[data-stampato]');
     if (sp) {
-      const n = Number(sp.dataset.stampato);
-      const o = D.leggiOrdini().find(x => x.numero === n);
+      const n = sp.dataset.stampato;
+      const o = D.trova(n);
       if (o) D.modificaOrdine(n, { stato: o.stato === 'fatto' ? 'pronto' : 'fatto' });
       return disegnaOperatore();
     }
@@ -14547,9 +15484,9 @@ function collega() {
 
     const st = t.closest('[data-stato]');
     if (st) {
-      const n = Number(st.dataset.stato);
-      const o = D.leggiOrdini().find(x => x.numero === n);
-      D.modificaOrdine(n, { stato: o.stato === 'fatto' ? 'pronto' : 'fatto' });
+      const n = st.dataset.stato;
+      const o = D.trova(n);
+      if (o) D.modificaOrdine(n, { stato: o.stato === 'fatto' ? 'pronto' : 'fatto' });
       return disegnaOperatore();
     }
 
@@ -14571,7 +15508,7 @@ function collega() {
 
     const el = t.closest('[data-elimina]');
     if (el) {
-      const n = Number(el.dataset.elimina);
+      const n = el.dataset.elimina;
       if (confirm('Eliminare l’ordine ' + n + '?')) {
         D.eliminaOrdine(n); disegnaOperatore();
       }
@@ -14657,14 +15594,43 @@ function collega() {
 
     const imp = t.closest('[data-importa]');
     if (imp) return chiediFile(imp.dataset.importa);
+
+    if (t.closest('[data-sincronizza]')) return azioneCollegamento(() => Sincro.sincronizza());
+    if (t.closest('[data-esci]')) {
+      if (Sincro.stato().inAttesa &&
+          !confirm('Ci sono modifiche non ancora inviate: partiranno al prossimo accesso. Uscire?')) return;
+      return azioneCollegamento(() => Sincro.esci());
+    }
+    if (t.closest('[data-collega]')) {
+      const porta = $('#sPorta');
+      return azioneCollegamento(() => Sincro.collega({
+        lettera: $('#sLettera').value, nome: $('#sNome').value.trim(),
+        portaOrdini: porta ? porta.checked : true,
+      }));
+    }
   });
+
+  // l'accesso e' un form: cosi' l'invio della tastiera entra, e l'iPad
+  // propone di ricordare la password
+  $('#opCorpo').addEventListener('submit', (ev) => {
+    if (!ev.target.closest('[data-accesso]')) return;
+    ev.preventDefault();
+    const email = $('#sEmail').value.trim(), password = $('#sPassword').value;
+    if (!email || !password) return avvisa('Scrivi email e password.');
+    azioneCollegamento(async () => {
+      await Sincro.entra(email, password);
+      if (Sincro.collegato()) await Sincro.sincronizza();
+    });
+  });
+
+  $('#opNovita').addEventListener('click', () => disegnaOperatore());
 
   // apertura di un ordine: ne resta aperto uno solo
   $('#opCorpo').addEventListener('toggle', (ev) => {
     const d = ev.target;
     if (!d.classList || !d.classList.contains('ordine') || !d.open) return;
     $$('.ordine[open]').forEach(x => { if (x !== d) x.open = false; });
-    riempiOrdine(Number(d.dataset.numero));
+    riempiOrdine(d.dataset.numero);
   }, true);
 
   // ritocchi su un ordine gia' preso
@@ -14674,20 +15640,20 @@ function collega() {
        dell'ordine, cosi' anteprima e misure tornano quelle nuove. */
     const rm = ev.target.closest('[data-ritoccam]');
     if (rm) {
-      const n = Number(rm.dataset.n);
-      const o = D.leggiOrdini().find(x => x.numero === n);
+      const n = rm.dataset.n;
+      const o = D.trova(n);
       const M = modulo(o && o.tipo);
       if (!M) return;
       const esito = M.ritocca(o, rm.dataset.lato, rm.dataset.ritoccam, Number(rm.value));
       if (esito && esito.errore) return avvisa(esito.errore);
       const dove = $('.dentro[data-corpo="' + n + '"]');
-      if (dove) dove.innerHTML = M.corpoOrdine(D.leggiOrdini().find(x => x.numero === n));
+      if (dove) dove.innerHTML = M.corpoOrdine(D.trova(n));
       return;
     }
     const r = ev.target.closest('[data-ritocco]');
     if (!r) return;
-    const n = Number(r.dataset.n);
-    const o = D.leggiOrdini().find(x => x.numero === n);
+    const n = r.dataset.n;
+    const o = D.trova(n);
     if (!eportachiavi(o)) return;
     o.cfg[r.dataset.ritocco] = Number(r.value);
     D.modificaOrdine(n, { cfg: o.cfg, ritoccato: true });
@@ -14723,6 +15689,8 @@ function scaldaFont(elenco) {
 
 function avvia() {
   registraFontFace();
+  Sincro.quandoCambia(quandoArrivaQualcosa);
+  Sincro.avvia();
   cat = D.leggiCatalogo();
   scelta = sceltaIniziale();
   collega();
