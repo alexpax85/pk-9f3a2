@@ -10412,8 +10412,11 @@ function esci() {
   const s = sessione;
   sessione = null;
   try { localStorage.removeItem(K_SESSIONE); } catch (e) {}
+  /* scope=local: senza, Supabase chiude le sessioni di quell'utente su tutti
+     i dispositivi, e l'account del chiosco e' uno per tutti gli iPad: un
+     «Esci» su un tablet scollegherebbe anche gli altri. */
   if (s && s.accesso && !s.scaduta)
-    fetch(SERVER + '/auth/v1/logout', { method: 'POST',
+    fetch(SERVER + '/auth/v1/logout?scope=local', { method: 'POST',
       headers: { apikey: CHIAVE, Authorization: 'Bearer ' + s.accesso } }).catch(() => {});
   annuncia({ stato: true });
 }
