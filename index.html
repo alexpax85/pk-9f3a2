@@ -386,9 +386,12 @@ body[data-tipo="maglietta"] #scena::before, body[data-tipo="barattolo"] #scena::
 .piccolo { font-size: 14px; padding: 0 16px; min-height: 46px; }
 /* il collegamento al server, in testata all'operatore */
 .sincro {
-  font-size: 13px; font-weight: 650; color: var(--tenue); white-space: nowrap;
-  display: inline-flex; align-items: center; gap: 8px;
+  font: inherit; font-size: 13px; font-weight: 650; color: var(--tenue); white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  background: transparent; border: 1px solid var(--linea); border-radius: 999px;
+  padding: 8px 14px; min-height: 40px;
 }
+.sincro[aria-pressed="true"] { border-color: var(--neon); color: var(--avorio); }
 .sincro::before {
   content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--tenue);
 }
@@ -399,6 +402,7 @@ body[data-tipo="maglietta"] #scena::before, body[data-tipo="barattolo"] #scena::
 #opNovita { border-color: var(--neon); color: var(--neon); }
 .avviso.errore { background: rgba(255,46,136,.08); border-color: rgba(255,46,136,.45); }
 form.accesso { margin: 0; }
+form.accesso .fila { margin-top: 14px; }
 #listaPostazioni { margin: 4px 0 12px; }
 
 .griglia2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 18px; }
@@ -459,6 +463,7 @@ body[data-tipo="maglietta"] #scena, body[data-tipo="barattolo"] #scena { flex: 0
    segnato col neon a filo, non pieno: e' sempre acceso, e un blocco neon
    fisso in cima all'operatore sarebbe una superficie, non un accento */
 #opTipo { display: flex; gap: 8px; padding: 10px 14px 0; background: var(--nero); }
+#opTipo[hidden] { display: none; }
 .opTipo {
   flex: 1; padding: 10px; font: inherit; font-family: var(--display); font-weight: 700;
   cursor: pointer; border: 1px solid var(--linea); border-radius: 10px;
@@ -524,8 +529,8 @@ body[data-tipo="maglietta"] #scena, body[data-tipo="barattolo"] #scena { flex: 0
 <div id="operatore" hidden>
   <div id="opTestata">
     <h2 id="opTitolo">Operatore</h2>
-    <!-- il collegamento al server: compare solo se il tablet e' collegato -->
-    <span id="opSincro" class="sincro" hidden></span>
+    <!-- il collegamento al server e' uno per tutto il tablet: si apre da qui -->
+    <button type="button" id="opSincro" class="sincro" aria-pressed="false">non collegato</button>
     <button type="button" id="opNovita" class="bottone piccolo" hidden>Novità: aggiorna</button>
     <button type="button" id="opChiudi" class="bottone piccolo">Chiudi</button>
   </div>
@@ -10192,6 +10197,10 @@ const K_STATO = 'portachiavi3d.sincro';
 /* Gli ordini che c'erano prima del collegamento, quando si sceglie di non
    portarli sul server: non si buttano, si mettono da parte. */
 const K_PRIMA = 'portachiavi3d.ordini.prima';
+/* Il catalogo che c'era prima di prendere quello del server, l'ultimo. Il
+   25 settembre 2026 un iPad appena collegato ha preso un catalogo di prova
+   al posto del suo, e il suo non c'era piu' da nessuna parte. */
+const K_CAT_PRIMA = 'portachiavi3d.catalogo.prima';
 
 /* Ogni quanto si chiede al server se c'e' qualcosa di nuovo. Una scelta, non
    una misura: un ordine preso al banco arriva sul Mac entro un quarto di
@@ -10588,6 +10597,8 @@ async function riceviCatalogo(cambiato) {
      scontro). Allora non c'e' niente su cui appoggiarla, e vince il server. */
   if (stato.catDaInviare && stato.catVersione > 0) return;
   stato.catDaInviare = false;
+  const mio = D.grezzo.catalogo();
+  if (mio) scrivi(K_CAT_PRIMA, { quando: new Date().toISOString(), dati: mio });
   D.grezzo.scriviCatalogo(r[0].dati);
   stato.catVersione = r[0].versione;
   cambiato.catalogo = true;
@@ -10735,6 +10746,7 @@ return {
   collegato, stato: descrivi,
   ruolo: () => (sessione && sessione.ruolo) || null,
   ordiniPrima: () => leggi(K_PRIMA, []),
+  catalogoPrima: () => leggi(K_CAT_PRIMA, null),
   POLL_MS,
 };
 })();
@@ -14313,13 +14325,20 @@ function disegnaOperatore() {
     b.setAttribute('aria-pressed', String(b.dataset.optipo === opTipo)));
   const M = modulo(opTipo);
   $('#opNovita').hidden = true;
-  if (opScheda === 'ordini')        $('#opCorpo').innerHTML = vistaOrdini();
+  /* Il collegamento e' del tablet, non di un mestiere: la sua pagina si apre
+     dalla testata e la fila dei mestieri sparisce, senno' sembrerebbero tre
+     collegamenti, uno per portachiavi, magliette e barattoli. */
+  const delTablet = opScheda === 'collegamento';
+  $('#opTipo').hidden = delTablet;
+  $('#opSincro').setAttribute('aria-pressed', String(delTablet));
+  if (delTablet)                    $('#opCorpo').innerHTML = sezioneCollegamento();
+  else if (opScheda === 'ordini')   $('#opCorpo').innerHTML = vistaOrdini();
   else if (opScheda === 'stampa')   $('#opCorpo').innerHTML =
       M ? M.vistaLavorazioni() : vistaStampa();
   else if (opScheda === 'catalogo') $('#opCorpo').innerHTML = vistaCatalogo();
   else                              $('#opCorpo').innerHTML = vistaDispositivo();
   if (opScheda === 'catalogo' && Sincro.ruolo() === 'chiosco') chiudiPrezzi();
-  if (opScheda === 'dispositivo') riempiPostazioni();
+  if (delTablet) riempiPostazioni();
   aggiornaSincro();
 }
 
@@ -15067,8 +15086,7 @@ function vistaDispositivo() {
      ordine, che serve a farsi pagare al banco, ma non il riepilogo. */
   const conti = S.ruolo !== 'chiosco';
 
-  return sezioneCollegamento() +
-    '<div class="sezione"><h3>Esportare per la stampa</h3>' +
+  return '<div class="sezione"><h3>Esportare per la stampa</h3>' +
     (opTipo === 'barattolo'
       ? '<p>Un archivio con una cartella per ordine. In ognuna ci sono ' +
         '<b>tutti e due i formati</b>: il file unico a colori, per la carta, ' +
@@ -15256,15 +15274,15 @@ async function riempiPostazioni() {
 }
 
 /* Il pallino in testata all'operatore: dice a colpo d'occhio se il tablet
-   parla col server. Sul lato cliente non si vede niente. */
+   parla col server, ed e' la porta della pagina del collegamento. Sul lato
+   cliente non si vede niente. */
 function aggiornaSincro() {
   const el = $('#opSincro');
   if (!el) return;
   const S = Sincro.stato();
-  if (!S.postazione && !S.entrato) { el.hidden = true; return; }
-  el.hidden = false;
   let v, t;
-  if (!S.collegato) { v = 'fermo'; t = S.scaduta ? 'accesso scaduto' : 'non collegato'; }
+  if (!S.postazione && !S.entrato) { v = 'mai'; t = 'non collegato'; }
+  else if (!S.collegato) { v = 'fermo'; t = S.scaduta ? 'accesso scaduto' : 'non collegato'; }
   else if (S.errore) { v = 'errore'; t = S.senzaRete ? 'senza rete' : 'errore del server'; }
   else if (S.inAttesa) { v = 'attesa'; t = S.inAttesa + ' in attesa'; }
   else { v = 'ok'; t = 'sincronizzato'; }
@@ -15279,7 +15297,7 @@ async function azioneCollegamento(fai) {
   catch (e) { avvisa(e.message || String(e)); }
   cat = D.leggiCatalogo();
   aggiornaSincro();
-  if (!$('#operatore').hidden && opScheda === 'dispositivo') {
+  if (!$('#operatore').hidden && opScheda === 'collegamento') {
     disegnaOperatore();
     riempiPostazioni();
   }
@@ -15624,6 +15642,7 @@ function collega() {
   });
 
   $('#opNovita').addEventListener('click', () => disegnaOperatore());
+  $('#opSincro').addEventListener('click', () => { opScheda = 'collegamento'; disegnaOperatore(); });
 
   // apertura di un ordine: ne resta aperto uno solo
   $('#opCorpo').addEventListener('toggle', (ev) => {
