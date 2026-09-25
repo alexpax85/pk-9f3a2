@@ -10814,6 +10814,10 @@ return {
   ruolo: () => (sessione && sessione.ruolo) || null,
   ordiniPrima: () => leggi(K_PRIMA, []),
   catalogoPrima: () => leggi(K_CAT_PRIMA, null),
+  /* La chiamata al server con l'utente entrato e lo schema giusto, per chi
+     legge e scrive tabelle che non passano dalla copia locale: il
+     gestionale dell'admin, che vive solo in rete. */
+  rest: chiama,
   POLL_MS,
 };
 })();
@@ -15813,9 +15817,10 @@ document.addEventListener('DOMContentLoaded', avvia);
    secondo e mezzo sul marchio, che da fuori non si simula in modo
    affidabile, e senza questo mezzo pezzo di programma resterebbe senza
    verifica ripetibile. */
-/* Quello che serve ad admin.js: aprire la coda dopo l'accesso e
-   ridisegnarla. */
-window.Operatore = { apri: apriOperatore, ridisegna: disegnaOperatore };
+/* Quello che serve ad admin.js e al gestionale: aprire la coda dopo
+   l'accesso, ridisegnarla, e consegnare un file come fa la coda (foglio di
+   condivisione nell'app installata, scaricamento nel browser). */
+window.Operatore = { apri: apriOperatore, ridisegna: disegnaOperatore, consegna };
 
 window.__pk3dChiosco = {
   get tipo() { return tipo; },

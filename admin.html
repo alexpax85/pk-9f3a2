@@ -628,6 +628,156 @@ html[data-faccia="admin"] #opChiudi { display: none; }
   #adNav button { padding: 8px 12px; font-size: 15px; }
   .adMarchio .faccia { display: none; }
 }
+
+/* =====================================================================
+   Portachiavi 3D — stile dei grafici e delle cifre del cruscotto (solo
+   quello che serve a src/grafici.js: le colonne, le barre e la linea sono
+   SVG che si colorano da sole con var(--...), non serve niente qui). Il
+   resto del gestionale lo aggiunge chi scrive gestionale.js.
+   ===================================================================== */
+
+.cifra {
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cifra-etichetta {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--tenue);
+}
+
+.cifra-valore {
+  font-family: var(--display);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--testo);
+  /* proporzionali, non tabulari: e' un numero isolato da leggere, non una
+     colonna di cifre da allineare (vedi la guida ai grafici: tabular-nums
+     solo dove le cifre devono restare in colonna) */
+}
+
+/* tono: colora solo il numero, non tutta la scheda — l'etichetta e la nota
+   restano testo normale, come vuole la regola "il testo non porta mai il
+   colore della serie" */
+.cifra-positivo .cifra-valore { color: var(--accento); }
+.cifra-negativo .cifra-valore { color: var(--magenta); }
+
+.cifra-nota {
+  font-size: 12px;
+  color: var(--tenue);
+}
+
+/* =====================================================================
+   Le schede del gestionale (gestionale.js). Stessi mattoni della coda:
+   .bottone, .campo, .griglia2, .avviso, .sezione vengono da chiosco.css.
+   ===================================================================== */
+
+#gest { padding: 0 18px 40px; }
+.gestSchede {
+  display: flex; gap: 6px; padding: 14px 0 12px; position: sticky; top: 0; z-index: 2;
+  background: var(--fondo); border-bottom: 1px solid var(--linea); margin-bottom: 16px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.gestSchede::-webkit-scrollbar { display: none; }
+.gestSchede button {
+  font: inherit; font-weight: 650; font-size: 15px; white-space: nowrap; cursor: pointer;
+  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--linea);
+  background: var(--superficie); color: var(--tenue);
+}
+.gestSchede button[aria-selected="true"] { color: var(--accento); border-color: var(--accento); }
+/* rileggere dal server sta in fondo alla fila, lontano dalle schede */
+.gestSchede .aggiorna { margin-left: auto; font-size: 17px; padding: 6px 14px; }
+
+.gestCifre { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.gestGriglia { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; }
+.gestGrafico h3 { margin: 0 0 6px; font-family: var(--display); font-size: 15px; font-weight: 700; }
+.gestGrafico {
+  background: var(--superficie); border: 1px solid var(--linea); border-radius: 12px; padding: 14px 16px;
+  min-width: 0;
+}
+.guida.piccola { font-size: 13px; color: var(--tenue); margin-top: 14px; }
+.guida.vuoto { color: var(--tenue); padding: 18px 0; }
+.tenue { color: var(--tenue); font-size: 13px; }
+h3.sotto { margin: 26px 0 8px; font-family: var(--display); font-size: 17px; }
+
+/* Il modulo di una riga si apre in cima alla scheda, sopra l'elenco: si
+   vede cosa si sta scrivendo e sotto resta quello che c'e' gia'. */
+.gestModulo {
+  background: var(--superficie); border: 1px solid var(--accento); border-radius: 12px;
+  padding: 16px 18px; margin-bottom: 18px;
+}
+.gestModulo h3 { margin: 0 0 12px; font-family: var(--display); font-size: 17px; }
+.gestModulo h4 { margin: 16px 0 6px; font-size: 14px; color: var(--tenue); font-weight: 650; }
+.gestModulo .fila { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.campo.largo { grid-column: 1 / -1; }
+.campo input[type=color] { height: 44px; padding: 3px; }
+.rigaFil { border-bottom: none; padding: 4px 0; }
+.rigaFil select {
+  font: inherit; font-size: 15px; padding: 9px 10px; border: 1px solid var(--linea);
+  border-radius: 10px; background: var(--superficie); color: var(--testo); flex: 1 1 auto; min-width: 0;
+}
+.rigaFil input {
+  font: inherit; padding: 9px 10px; border: 1px solid var(--linea); border-radius: 10px;
+  background: var(--superficie); color: var(--testo);
+}
+
+/* Le tabelle: sul Mac ci stanno larghe, sull'iPad in verticale scorrono di
+   lato dentro la loro cornice invece di allargare la pagina. */
+.gestTabella { overflow-x: auto; border: 1px solid var(--linea); border-radius: 12px; background: var(--superficie); }
+.gestTabella table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.gestTabella th {
+  text-align: left; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--tenue); padding: 10px 12px; border-bottom: 1px solid var(--linea); white-space: nowrap;
+}
+.gestTabella td { padding: 10px 12px; border-bottom: 1px solid var(--linea); vertical-align: middle; }
+.gestTabella tr:last-child td { border-bottom: none; }
+.gestTabella .n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gestTabella tr.spento td { opacity: .55; }
+.azioni { display: inline-flex; gap: 2px; margin-left: 6px; }
+.azioni .via, .gestTabella .via {
+  border: none; background: transparent; cursor: pointer; color: var(--tenue); font-size: 16px; padding: 6px 8px;
+}
+
+/* il campione della bobina: il filo scuro serve alla bobina bianca */
+.tinta {
+  display: inline-block; width: 22px; height: 22px; border-radius: 50%; vertical-align: middle;
+  box-shadow: inset 0 0 0 1px var(--filo), 0 0 0 1px var(--linea);
+}
+.tinta.piccola { width: 12px; height: 12px; margin-right: 5px; }
+.filo { display: inline-flex; align-items: center; white-space: nowrap; margin: 2px 8px 2px 0; }
+.residuo { width: 120px; height: 8px; border-radius: 4px; background: var(--incavo); overflow: hidden; margin-bottom: 4px; }
+.residuo span { display: block; height: 100%; background: var(--accento); }
+/* bassa: l'accento velato, perche' il brand ammette solo il magenta come altro colore */
+.residuo[data-stato="basso"] span { background: rgba(var(--accento-rgb), .45); }
+.residuo[data-stato="esaurito"] span { background: var(--magenta); }
+.esito, .etichetta {
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 20px; background: var(--etichetta); color: var(--tenue); white-space: nowrap;
+}
+.esito[data-v="ok"] { background: rgba(var(--accento-rgb), .14); color: var(--accento); }
+.esito[data-v="fail"] { background: rgba(255,46,136,.12); color: var(--magenta); }
+.positivo { color: var(--accento); }
+.negativo { color: var(--magenta); }
+.avviso ul { margin: 8px 0 0; padding-left: 20px; }
+
+.gestNota {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 30;
+  background: var(--testo); color: var(--fondo); padding: 10px 18px; border-radius: 999px;
+  font-weight: 650; font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.18);
+}
+
+@media (max-width: 720px) {
+  #gest { padding: 0 12px 40px; }
+  .gestGriglia { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
@@ -689,14 +839,9 @@ html[data-faccia="admin"] #opChiudi { display: none; }
          e' un altro mega, e chi guarda solo la coda non lo scarica -->
     <section data-vista="studio" hidden></section>
 
-    <section data-vista="gestionale" hidden>
-      <div class="vuota">
-        <h2>Gestionale</h2>
-        <p class="guida">Qui arriveranno bobine, stampe, vendite e conti, con i dati del
-          vecchio gestionale importati una volta. Gli incassi del chiosco verranno dagli
-          ordini fatti, senza doverli scrivere a mano.</p>
-      </div>
-    </section>
+    <!-- il gestionale lo disegna gestionale.js, che legge dal server quando
+         si apre la vista: non ha copia locale -->
+    <section data-vista="gestionale" hidden><div id="gest"></div></section>
   </main>
 </div>
 
@@ -10926,6 +11071,10 @@ return {
   ruolo: () => (sessione && sessione.ruolo) || null,
   ordiniPrima: () => leggi(K_PRIMA, []),
   catalogoPrima: () => leggi(K_CAT_PRIMA, null),
+  /* La chiamata al server con l'utente entrato e lo schema giusto, per chi
+     legge e scrive tabelle che non passano dalla copia locale: il
+     gestionale dell'admin, che vive solo in rete. */
+  rest: chiama,
   POLL_MS,
 };
 })();
@@ -15925,9 +16074,10 @@ document.addEventListener('DOMContentLoaded', avvia);
    secondo e mezzo sul marchio, che da fuori non si simula in modo
    affidabile, e senza questo mezzo pezzo di programma resterebbe senza
    verifica ripetibile. */
-/* Quello che serve ad admin.js: aprire la coda dopo l'accesso e
-   ridisegnarla. */
-window.Operatore = { apri: apriOperatore, ridisegna: disegnaOperatore };
+/* Quello che serve ad admin.js e al gestionale: aprire la coda dopo
+   l'accesso, ridisegnarla, e consegnare un file come fa la coda (foglio di
+   condivisione nell'app installata, scaricamento nel browser). */
+window.Operatore = { apri: apriOperatore, ridisegna: disegnaOperatore, consegna };
 
 window.__pk3dChiosco = {
   get tipo() { return tipo; },
@@ -15944,12 +16094,1591 @@ window.__pk3dChiosco = {
 })();
 
 /* =====================================================================
+   Portachiavi 3D — grafici per il cruscotto del gestionale (solo admin)
+   SVG scritti a mano, come stringa: il chiamante la mette con innerHTML,
+   quindi ogni funzione restituisce un file completo, mai un pezzo a meta'.
+   Niente libreria di grafici: sono quattro forme (colonne, barre, linea,
+   cifra) e non serve altro.
+
+   Colori SOLO da variabili CSS (--testo, --tenue, --linea, --accento,
+   --magenta, --superficie): cosi' lo stesso SVG vale per la veste scura
+   del chiosco e per quella chiara dell'admin (chiosco.css, :root e
+   :root[data-ruolo="admin"]) senza essere rigenerato. Le barre delle
+   bobine sono un'eccezione voluta: li' il colore e' la tinta vera del
+   filamento (un hex), non un ruolo dell'interfaccia — vedi `barre`.
+
+   Niente misura del DOM: queste stringhe si costruiscono anche fuori dal
+   browser (prova/grafici/prova.html le chiama comunque nel browser, ma
+   nulla qui lo richiede). Le larghezze del testo sono percio' stimate
+   (`largStima`), non misurate: bastano a tenere i margini larghi a
+   sufficienza, non servono al pixel.
+   ===================================================================== */
+window.Grafici = (function () {
+'use strict';
+
+const NS = 'http://www.w3.org/2000/svg';
+
+/* Stessa fuga di sicurezza usata in tutto il resto del progetto (vedi
+   barattolo.js, magliette.js, chiosco.js): i nomi che finiscono nell'SVG
+   arrivano dall'utente (categorie di spesa, nomi di bobine...). */
+const esc = (s) => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/* Arrotonda le coordinate a due decimali: l'SVG non ha bisogno di piu'
+   precisione di cosi', e i numeri restano corti (stesso nome di
+   barattolo.js per la stessa idea). */
+const r2 = (v) => Math.round(v * 100) / 100;
+
+/* Un `colore` puo' arrivare da fuori (hex di una bobina, dal catalogo):
+   va dentro un attributo fra virgolette, quindi si accetta solo quello
+   che sembra davvero un colore (var(--nome) oppure #hex), altrimenti si
+   scarta e si usa il ripiego. Non e' un controllo estetico, e' quello che
+   impedisce a una stringa storta di rompere l'attributo. */
+function coloreSicuro(c, ripiego) {
+  if (typeof c === 'string' && /^(var\(--[a-zA-Z0-9-]+\)|#[0-9a-fA-F]{3,8})$/.test(c.trim())) return c.trim();
+  return ripiego;
+}
+
+/* Non c'e' il DOM per misurare il testo (l'SVG e' solo una stringa), quindi
+   si stima: 0,6 em per carattere e' una media ragionevole per un sans-serif
+   a cifre e minuscole, larga abbastanza da non far accavallare le tacche
+   dell'asse — se sbaglia, sbaglia per eccesso (margine un po' piu' largo
+   del necessario), mai per difetto. */
+function largStima(testo, dimFont) {
+  return String(testo == null ? '' : testo).length * dimFont * 0.6;
+}
+
+/* Accorcia un nome che non entra nella colonna che gli e' riservata
+   (le voci di `barre` possono essere lunghe: categorie di spesa scritte
+   a mano). Stessa stima di `largStima`, non una misura vera. */
+function tronca(testo, largMax, dimFont) {
+  const t = String(testo == null ? '' : testo);
+  if (largStima(t, dimFont) <= largMax) return t;
+  let corto = t;
+  while (corto.length > 1 && largStima(corto + '…', dimFont) > largMax) corto = corto.slice(0, -1);
+  return corto.length < t.length ? corto + '…' : t;
+}
+
+/* Ripiego se il chiamante non passa un `formato`: euro interi alla
+   notazione italiana. Intl lo sa fare da solo, senza librerie. */
+function formatoRipiego(v) {
+  const num = Number(v);
+  if (!isFinite(num)) return '';
+  try { return num.toLocaleString('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }); }
+  catch (e) { return Math.round(num) + ' €'; }
+}
+
+/* Le tacche "tonde" dell'asse y: non la differenza max-min divisa a caso,
+   ma il passo 1/2/5 x 10^n piu' vicino a quello voluto (l'algoritmo dei
+   "numeri tondi" per gli assi, la stessa idea di ogni libreria di grafici).
+   contoVoluto e' un obiettivo (3-5), non un vincolo rigido: l'arrotondamento
+   a un passo tondo puo' darne una in piu' o in meno. */
+function tacche(min, max, contoVoluto) {
+  if (min === max) { min -= 1; max += 1; } // dominio degenere (tutti zero): si allarga per avere una scala
+  const grezzo = Math.max((max - min) / Math.max(1, contoVoluto - 1), 1e-9);
+  const esp = Math.floor(Math.log10(grezzo));
+  const base = grezzo / Math.pow(10, esp);
+  const passoBase = base < 1.5 ? 1 : base < 3 ? 2 : base < 7 ? 5 : 10;
+  const passo = passoBase * Math.pow(10, esp);
+  const inizio = Math.floor(min / passo) * passo;
+  const fine = Math.ceil(max / passo) * passo;
+  const vals = [];
+  for (let v = inizio; v <= fine + passo / 1e6; v += passo) vals.push(Math.round(v / passo) * passo);
+  // di proposito non dovrebbe mai servire, ma se un dominio strano ne desse
+  // troppe si stringe l'obiettivo invece di mostrare un asse illeggibile
+  if (vals.length > 7 && contoVoluto > 2) return tacche(min, max, contoVoluto - 1);
+  return vals;
+}
+
+/* `tacche` sceglie il passo in millimetri di dominio, non sa niente del
+   `formato` che lo scrivera': su un dominio piccolo (tipico il caso "tutti
+   zero", spanato a -1..1) il passo tondo puo' uscire piu' fine di quello
+   che il formattatore sa distinguere — 0,5 € arrotondato a zero decimali
+   e' "1 €" tale e quale a 1 €, e l'asse ripete la stessa etichetta. Si
+   riprova con meno tacche finche' i testi non sono tutti diversi; se il
+   formattatore stesso confonde due numeri distanti (caso patologico) resta
+   il tentativo piu' povero, che almeno non ripete la tacca centrale. */
+function taccheLeggibili(min, max, f) {
+  let ripiego = null;
+  for (const conto of [4, 3, 2]) {
+    const vals = tacche(min, max, conto);
+    const testi = vals.map(f);
+    if (!ripiego) ripiego = vals;
+    if (new Set(testi).size === testi.length) return vals;
+  }
+  return ripiego;
+}
+
+const LARGHEZZA = 600;       // unita' del viewBox: con width 100% e' solo una scala interna
+const ALTEZZA_PLOT = 200;    // altezza sensata per una card di cruscotto, misurata a occhio sullo schermo dell'admin
+const MARGINE_SX_MIN = 34;
+const STILE = '<style>text{font-family:var(--corpo,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);}</style>';
+
+/* Il messaggio al posto del grafico: "nessun dato" non e' un errore, e' un
+   caso normale (un mese senza ordini, una bobina mai usata) e non deve
+   sembrare un SVG rotto. */
+function svgVuoto(titolo, larghezza, altezza, messaggio) {
+  return `<svg viewBox="0 0 ${larghezza} ${altezza}" width="100%" height="${altezza}" role="img" xmlns="${NS}">` +
+    `<title>${esc(titolo || 'Grafico')}</title>${STILE}` +
+    `<text x="${r2(larghezza / 2)}" y="${r2(altezza / 2)}" text-anchor="middle" dominant-baseline="middle" ` +
+    `font-size="13" fill="var(--tenue)">${esc(messaggio)}</text></svg>`;
+}
+
+/* Griglia orizzontale + etichette dell'asse y: un hairline per tacca, un
+   grigio un passo sopra il fondo (var(--linea)), mai tratteggiato (legge
+   come "soglia", e qui e' solo una griglia). */
+function assiY(vals, scalaY, xSx, xDx, f) {
+  let svg = '';
+  for (const t of vals) {
+    const y = scalaY(t);
+    svg += `<line x1="${r2(xSx)}" y1="${r2(y)}" x2="${r2(xDx)}" y2="${r2(y)}" stroke="var(--linea)" stroke-width="1"/>`;
+    svg += `<text x="${r2(xSx - 8)}" y="${r2(y + 4)}" text-anchor="end" font-size="12" fill="var(--tenue)">${esc(f(t))}</text>`;
+  }
+  return svg;
+}
+
+/* Le etichette dell'asse x, diradate se non ci stanno tutte: il limite e'
+   per riga di etichette, non sul numero di categorie, quindi con dodici
+   mesi ne mostra una ogni due o tre invece di scriverle una sull'altra. */
+function assiX(etichette, scalaX, yBase, step) {
+  let svg = '';
+  etichette.forEach((et, i) => {
+    if (i % step !== 0) return;
+    svg += `<text x="${r2(scalaX(i))}" y="${r2(yBase + 18)}" text-anchor="middle" font-size="12" ` +
+      `fill="var(--tenue)">${esc(et)}</text>`;
+  });
+  return svg;
+}
+
+/* Legenda orizzontale, a capo se non ci sta: serve solo da due serie in su
+   (con una il titolo del grafico gia' dice cos'e'). Restituisce anche
+   l'altezza occupata, perche' il resto del grafico deve scendere di
+   conseguenza. */
+function legenda(serie, xStart, yStart, largDisponibile) {
+  const ALT_RIGA = 20, QUADRATO = 10, SPAZIO = 14;
+  let x = xStart, y = yStart, righe = 1, svg = '';
+  for (const s of serie) {
+    const largVoce = QUADRATO + 6 + largStima(s.nome, 12) + SPAZIO;
+    if (x > xStart && x + largVoce > xStart + largDisponibile) { x = xStart; y += ALT_RIGA; righe++; }
+    svg += `<rect x="${r2(x)}" y="${r2(y - QUADRATO + 2)}" width="${QUADRATO}" height="${QUADRATO}" rx="2" ` +
+      `fill="${s.colore}"/>`;
+    svg += `<text x="${r2(x + QUADRATO + 6)}" y="${r2(y + 2)}" font-size="12" fill="var(--testo)">${esc(s.nome)}</text>`;
+    x += largVoce;
+  }
+  return { svg, altezza: righe * ALT_RIGA };
+}
+
+/* Una colonna verticale, che cresce dalla riga dello zero: l'angolo
+   arrotondato (4px, la misura della guida ai grafici) sta solo dalla parte
+   lontana dalla base, l'altro resta vivo perche' e' li' che la colonna
+   tocca l'asse. Se la barra e' troppo corta per l'angolo, un rettangolo
+   pieno basta. */
+function colonnaVerticale(xCentro, larg, yBase, yCima, colore) {
+  const su = yCima <= yBase;
+  const r = Math.min(4, larg / 2, Math.abs(yBase - yCima));
+  const x0 = xCentro - larg / 2, x1 = xCentro + larg / 2;
+  if (r <= 0.01) {
+    const y = Math.min(yBase, yCima), h = Math.max(0.5, Math.abs(yBase - yCima));
+    return `<rect x="${r2(x0)}" y="${r2(y)}" width="${r2(larg)}" height="${r2(h)}" fill="${colore}"/>`;
+  }
+  const yPunta = yCima, yLato = su ? yCima + r : yCima - r;
+  return `<path d="M${r2(x0)},${r2(yBase)} L${r2(x0)},${r2(yLato)} Q${r2(x0)},${r2(yPunta)} ${r2(x0 + r)},${r2(yPunta)} ` +
+    `L${r2(x1 - r)},${r2(yPunta)} Q${r2(x1)},${r2(yPunta)} ${r2(x1)},${r2(yLato)} L${r2(x1)},${r2(yBase)} Z" fill="${colore}"/>`;
+}
+
+/* Colonne raggruppate per periodo: ricavi e costi mese per mese, o
+   qualunque altra serie allineata sulle stesse etichette. */
+function colonne({ titolo, etichette, serie, formato }) {
+  const f = typeof formato === 'function' ? formato : formatoRipiego;
+  const et = Array.isArray(etichette) ? etichette : [];
+  const serieValide = (Array.isArray(serie) ? serie : []).filter(s => s && Array.isArray(s.valori));
+  const haDati = et.length > 0 && serieValide.length > 0 &&
+    serieValide.some(s => s.valori.slice(0, et.length).some(v => v != null && isFinite(Number(v))));
+  if (!haDati) return svgVuoto(titolo, LARGHEZZA, 14 + ALTEZZA_PLOT + 30, 'Nessun dato');
+
+  // ripiego per il colore: la prima serie e' la voce principale (accento),
+  // la seconda la spesa/il negativo (magenta), oltre resta il tenue
+  const RIPIEGO = ['var(--accento)', 'var(--magenta)', 'var(--tenue)'];
+  const ser = serieValide.map((s, i) => ({
+    nome: s.nome || '',
+    colore: coloreSicuro(s.colore, RIPIEGO[i % RIPIEGO.length]),
+    valori: et.map((_, j) => { const v = Number(s.valori[j]); return isFinite(v) ? v : 0; }),
+  }));
+
+  // il dominio comprende sempre lo zero: le colonne partono sempre da li'
+  let min = 0, max = 0;
+  for (const s of ser) for (const v of s.valori) { if (v < min) min = v; if (v > max) max = v; }
+  const tick = taccheLeggibili(min, max, f);
+  min = Math.min(min, tick[0]); max = Math.max(max, tick[tick.length - 1]);
+
+  const mostraLegenda = ser.length > 1;
+  const leg = mostraLegenda ? legenda(ser, MARGINE_SX_MIN, 14, LARGHEZZA - MARGINE_SX_MIN - 12) : { svg: '', altezza: 0 };
+
+  const testoTickMax = tick.reduce((m, t) => { const s = f(t); return s.length > m.length ? s : m; }, '');
+  const marginSx = Math.max(MARGINE_SX_MIN, 18 + largStima(testoTickMax, 12));
+  const marginDx = 14;
+  const plotTop = mostraLegenda ? leg.altezza + 18 : 10;
+  const plotBottom = plotTop + ALTEZZA_PLOT;
+  const altezza = plotBottom + 30;
+  const plotSx = marginSx, plotDx = LARGHEZZA - marginDx;
+
+  const scalaY = (v) => plotBottom - (v - min) / (max - min) * ALTEZZA_PLOT;
+  const yZero = scalaY(0);
+  const largGruppo = (plotDx - plotSx) / et.length;
+  const GAP = 2; // spazio "superficie" fra barre vicine, vedi guida ai grafici
+  const largBarra = Math.max(2, Math.min(24, (largGruppo - GAP * (ser.length + 1)) / ser.length));
+
+  let corpo = assiY(tick, scalaY, plotSx, plotDx, f);
+  corpo += `<line x1="${r2(plotSx)}" y1="${r2(yZero)}" x2="${r2(plotDx)}" y2="${r2(yZero)}" ` +
+    `stroke="var(--linea)" stroke-width="1"/>`;
+
+  et.forEach((etic, i) => {
+    const xGruppo0 = plotSx + i * largGruppo;
+    const largOccupata = largBarra * ser.length + GAP * (ser.length - 1);
+    const xStart = xGruppo0 + (largGruppo - largOccupata) / 2;
+    ser.forEach((s, k) => {
+      const v = s.valori[i];
+      const xCentro = xStart + k * (largBarra + GAP) + largBarra / 2;
+      corpo += `<g><title>${esc(etic)} — ${esc(s.nome)}: ${esc(f(v))}</title>` +
+        colonnaVerticale(xCentro, largBarra, yZero, scalaY(v), s.colore) + `</g>`;
+    });
+  });
+
+  const etLargMax = et.reduce((m, e) => Math.max(m, largStima(e, 12)), 0);
+  const step = Math.max(1, Math.ceil((etLargMax + 10) / largGruppo));
+  corpo += assiX(et, (i) => plotSx + i * largGruppo + largGruppo / 2, plotBottom, step);
+
+  return `<svg viewBox="0 0 ${LARGHEZZA} ${altezza}" width="100%" height="${altezza}" role="img" xmlns="${NS}">` +
+    `<title>${esc(titolo || 'Grafico a colonne')}</title>${STILE}${leg.svg}${corpo}</svg>`;
+}
+
+/* Una barra orizzontale: stessa idea delle colonne, ruotata di 90°. Qui in
+   piu' c'e' sempre un filo var(--linea) attorno (chiesto per le bobine: un
+   colore chiaro/bianco altrimenti sparisce sul fondo chiaro dell'admin). */
+function barraOrizzontale(yCentro, alt, xBase, xPunta, colore) {
+  const destra = xPunta >= xBase;
+  const r = Math.min(4, alt / 2, Math.abs(xPunta - xBase));
+  const y0 = yCentro - alt / 2, y1 = yCentro + alt / 2;
+  if (r <= 0.01) {
+    const x = Math.min(xBase, xPunta), w = Math.max(0.5, Math.abs(xPunta - xBase));
+    return `<rect x="${r2(x)}" y="${r2(y0)}" width="${r2(w)}" height="${r2(alt)}" fill="${colore}" ` +
+      `stroke="var(--linea)" stroke-width="1"/>`;
+  }
+  const xLato = destra ? xPunta - r : xPunta + r;
+  return `<path d="M${r2(xBase)},${r2(y0)} L${r2(xLato)},${r2(y0)} Q${r2(xPunta)},${r2(y0)} ${r2(xPunta)},${r2(y0 + r)} ` +
+    `L${r2(xPunta)},${r2(y1 - r)} Q${r2(xPunta)},${r2(y1)} ${r2(xLato)},${r2(y1)} L${r2(xBase)},${r2(y1)} Z" ` +
+    `fill="${colore}" stroke="var(--linea)" stroke-width="1"/>`;
+}
+
+/* Barre orizzontali ordinate dal valore piu' grande: spese per categoria,
+   grammi per bobina. Il colore e' per voce (una tinta vera, es. la bobina),
+   non per identita' di serie: niente legenda, il nome sta a fianco. */
+function barre({ titolo, voci, formato }) {
+  const f = typeof formato === 'function' ? formato : formatoRipiego;
+  const elenco = (Array.isArray(voci) ? voci : [])
+    .filter(v => v && v.nome != null && isFinite(Number(v.valore)));
+  if (!elenco.length) return svgVuoto(titolo, LARGHEZZA, 120, 'Nessun dato');
+
+  const ordinati = elenco.slice().sort((a, b) => Number(b.valore) - Number(a.valore));
+  const RIGA = 32, ALT_BARRA = 16, TOP = 14, BOTTOM = 14;
+  const altezza = TOP + ordinati.length * RIGA + BOTTOM;
+
+  let min = 0, max = 0;
+  for (const v of ordinati) { const val = Number(v.valore); if (val < min) min = val; if (val > max) max = val; }
+  if (min === max) max = min + 1; // tutti uguali (spesso tutti zero): niente divisione per zero
+
+  const nomeLargMax = ordinati.reduce((m, v) => Math.max(m, largStima(v.nome, 12)), 0);
+  const colNome = Math.min(LARGHEZZA * 0.4, 24 + nomeLargMax);
+  const valoreLargMax = ordinati.reduce((m, v) => Math.max(m, largStima(f(Number(v.valore)), 13)), 0);
+  const colValore = 12 + valoreLargMax;
+  const areaBarre = Math.max(20, LARGHEZZA - colNome - colValore - 16);
+
+  const scala = (v) => (v - min) / (max - min) * areaBarre;
+  const xBase = colNome + 8 + scala(0);
+
+  let corpo = `<line x1="${r2(xBase)}" y1="${r2(TOP - 6)}" x2="${r2(xBase)}" y2="${r2(altezza - BOTTOM + 6)}" ` +
+    `stroke="var(--linea)" stroke-width="1"/>`;
+
+  ordinati.forEach((v, i) => {
+    const yc = TOP + i * RIGA + RIGA / 2;
+    const val = Number(v.valore);
+    const xPunta = colNome + 8 + scala(val);
+    const colore = coloreSicuro(v.colore, val < 0 ? 'var(--magenta)' : 'var(--accento)');
+    const nomeTronco = tronca(v.nome, colNome - 16, 12);
+    corpo += `<text x="8" y="${r2(yc + 4)}" font-size="12" fill="var(--testo)">${esc(nomeTronco)}</text>`;
+    corpo += `<g><title>${esc(v.nome)}: ${esc(f(val))}</title>` +
+      barraOrizzontale(yc, ALT_BARRA, xBase, xPunta, colore) + `</g>`;
+    const ancora = val >= 0 ? 'start' : 'end';
+    const xTesto = val >= 0 ? xPunta + 6 : xPunta - 6;
+    corpo += `<text x="${r2(xTesto)}" y="${r2(yc + 4)}" text-anchor="${ancora}" font-size="13" ` +
+      `fill="var(--testo)">${esc(f(val))}</text>`;
+  });
+
+  return `<svg viewBox="0 0 ${LARGHEZZA} ${altezza}" width="100%" height="${altezza}" role="img" xmlns="${NS}">` +
+    `<title>${esc(titolo || 'Grafico a barre')}</title>${STILE}${corpo}</svg>`;
+}
+
+/* Una linea sola: l'andamento nel tempo di una grandezza che puo' cambiare
+   segno (il margine cumulativo). La riga dello zero si distingue dalla
+   griglia solo quando i valori la attraversano davvero: se stanno tutti
+   sopra o tutti sotto e' solo una tacca come le altre. */
+function linea({ titolo, etichette, valori, formato }) {
+  const f = typeof formato === 'function' ? formato : formatoRipiego;
+  const et = Array.isArray(etichette) ? etichette : [];
+  const val = Array.isArray(valori) ? valori.map(Number) : [];
+  const nPunti = Math.min(et.length, val.length);
+  const haDati = nPunti > 0 && val.slice(0, nPunti).some(v => isFinite(v));
+  if (!haDati) return svgVuoto(titolo, LARGHEZZA, 14 + ALTEZZA_PLOT + 30, 'Nessun dato');
+
+  const etU = et.slice(0, nPunti);
+  const valU = val.slice(0, nPunti).map(v => isFinite(v) ? v : 0);
+
+  let min = 0, max = 0;
+  for (const v of valU) { if (v < min) min = v; if (v > max) max = v; }
+  const tick = taccheLeggibili(min, max, f);
+  min = Math.min(min, tick[0]); max = Math.max(max, tick[tick.length - 1]);
+
+  const testoTickMax = tick.reduce((m, t) => { const s = f(t); return s.length > m.length ? s : m; }, '');
+  const marginSx = Math.max(MARGINE_SX_MIN, 18 + largStima(testoTickMax, 12));
+  const marginDx = 14, top = 14, marginBasso = 30;
+  const plotTop = top, plotBottom = top + ALTEZZA_PLOT;
+  const altezza = plotBottom + marginBasso;
+  const plotSx = marginSx, plotDx = LARGHEZZA - marginDx;
+
+  const scalaY = (v) => plotBottom - (v - min) / (max - min) * ALTEZZA_PLOT;
+  const scalaX = (i) => nPunti === 1 ? (plotSx + plotDx) / 2 : plotSx + i * (plotDx - plotSx) / (nPunti - 1);
+  const attraversaLoZero = min < 0 && max > 0;
+
+  let corpo = assiY(tick, scalaY, plotSx, plotDx, f);
+  if (attraversaLoZero) {
+    corpo += `<line x1="${r2(plotSx)}" y1="${r2(scalaY(0))}" x2="${r2(plotDx)}" y2="${r2(scalaY(0))}" ` +
+      `stroke="var(--tenue)" stroke-width="1.25"/>`;
+  }
+
+  if (nPunti >= 2) {
+    const yZero = scalaY(0);
+    let areaD = `M${r2(scalaX(0))},${r2(yZero)} `;
+    valU.forEach((v, i) => { areaD += `L${r2(scalaX(i))},${r2(scalaY(v))} `; });
+    areaD += `L${r2(scalaX(nPunti - 1))},${r2(yZero)} Z`;
+    corpo += `<path d="${areaD}" fill="var(--accento)" opacity="0.12"/>`;
+
+    let lineaD = '';
+    valU.forEach((v, i) => { lineaD += (i === 0 ? 'M' : 'L') + `${r2(scalaX(i))},${r2(scalaY(v))} `; });
+    corpo += `<path d="${lineaD}" fill="none" stroke="var(--accento)" stroke-width="2" ` +
+      `stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+
+  valU.forEach((v, i) => {
+    const x = scalaX(i), y = scalaY(v), ultimo = i === nPunti - 1;
+    corpo += `<g><title>${esc(etU[i])}: ${esc(f(v))}</title>` +
+      `<circle cx="${r2(x)}" cy="${r2(y)}" r="${ultimo ? 4 : 3}" fill="var(--accento)" ` +
+      `stroke="var(--superficie)" stroke-width="2"/></g>`;
+  });
+
+  // il valore si scrive solo sull'ultimo punto: mai un numero per ogni
+  // punto della linea, e' li' che si vuole guardare (il margine di oggi)
+  const ultimoVal = valU[nPunti - 1];
+  const xUlt = scalaX(nPunti - 1), yUlt = scalaY(ultimoVal);
+  const spazioSopra = yUlt - plotTop > 16;
+  corpo += `<text x="${r2(nPunti === 1 ? xUlt : Math.min(xUlt, plotDx - 4))}" ` +
+    `y="${r2(spazioSopra ? yUlt - 10 : yUlt + 18)}" text-anchor="${nPunti === 1 ? 'middle' : 'end'}" ` +
+    `font-size="13" fill="var(--testo)">${esc(f(ultimoVal))}</text>`;
+
+  const etLargMax = etU.reduce((m, e) => Math.max(m, largStima(e, 12)), 0);
+  const passoMedio = nPunti > 1 ? (plotDx - plotSx) / (nPunti - 1) : (plotDx - plotSx);
+  const step = Math.max(1, Math.ceil((etLargMax + 10) / Math.max(1, passoMedio)));
+  corpo += assiX(etU, scalaX, plotBottom, step);
+
+  return `<svg viewBox="0 0 ${LARGHEZZA} ${altezza}" width="100%" height="${altezza}" role="img" xmlns="${NS}">` +
+    `<title>${esc(titolo || 'Andamento')}</title>${STILE}${corpo}</svg>`;
+}
+
+/* Una scheda KPI, in HTML e non in SVG (e' testo, non disegno): le classi
+   sono nel foglio di stile di gestionale.js (src/gestionale.css). */
+function cifra({ etichetta, valore, nota, tono, formato }) {
+  const f = typeof formato === 'function' ? formato : formatoRipiego;
+  const testoValore = typeof valore === 'number' ? f(valore) : String(valore == null ? '' : valore);
+  const classeTono = tono === 'positivo' ? ' cifra-positivo' : tono === 'negativo' ? ' cifra-negativo' : '';
+  return `<div class="cifra${classeTono}">` +
+    `<div class="cifra-etichetta">${esc(etichetta || '')}</div>` +
+    `<div class="cifra-valore">${esc(testoValore)}</div>` +
+    (nota ? `<div class="cifra-nota">${esc(nota)}</div>` : '') +
+    `</div>`;
+}
+
+return { colonne, barre, linea, cifra };
+})();
+
+/* =====================================================================
+   Portachiavi 3D — il vecchio gestionale portato dentro
+   (MakeItYours_Gestionale.html, la versione da leggere per capire i campi
+   sta in "/3D organizer", fuori da questo repository) tradotto nelle
+   tabelle di supabase/schema.sql: bobine, stampe, vendite, movimenti.
+
+   Non tocca il DOM: legge il JSON che il vecchio file esporta col bottone
+   «Salva» (o che autoSave scrive in localStorage, stessa forma) e restituisce
+   righe pronte per l'upsert. Per questo gira anche in Node, dove prova/vecchio/
+   prova.mjs lo importa senza aprire un browser (vedi src/traccia.js per lo
+   stesso schema a due ambienti).
+
+   Il vecchio file non ha mai saputo di piu' dispositivi: i suoi id sono
+   contatori che ripartono da 1 su ognuno, quindi due Mac diversi hanno
+   entrambi un filamento "id 3". La chiave che li distingue e' `origine`,
+   l'etichetta che l'utente da' al file importato (es. "Mac", "iPad"), e da
+   quella chiave si ricava anche l'uuid della riga (vedi idPer): cosi'
+   reimportare lo stesso file, o uno piu' recente dello stesso dispositivo,
+   aggiorna le righe invece di raddoppiarle, e i riferimenti fra tabelle
+   restano giusti perche' la stessa chiave produce sempre lo stesso id.
+   ===================================================================== */
+(function (radice) {
+'use strict';
+
+/* ------------------------------------------------------------------ id
+   Un id deterministico dalla chiave (SHA-256, primi 16 byte) invece di
+   gen_random_uuid(): reimportando lo stesso file la riga deve avere sempre
+   lo stesso id, altrimenti l'upsert (on conflict su `origine`) non basta a
+   tenere buoni i riferimenti incrociati (stampa -> bobina, vendita ->
+   stampa, movimento -> vendita), che sono scritti PRIMA di sapere se il
+   database gia' li conosce. Si sistemano i bit di versione e variante solo
+   per farlo sembrare un uuid v4 qualunque: chi lo legge non deve accorgersi
+   che e' calcolato e non casuale. */
+async function idPer(chiave) {
+  const bytes = new TextEncoder().encode(chiave);
+  const hash = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', bytes));
+  const b = hash.slice(0, 16);
+  b[6] = (b[6] & 0x0f) | 0x40;   // versione 4
+  b[8] = (b[8] & 0x3f) | 0x80;   // variante RFC 4122
+  const esa = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+  return esa.slice(0, 8) + '-' + esa.slice(8, 12) + '-' + esa.slice(12, 16) + '-' +
+         esa.slice(16, 20) + '-' + esa.slice(20, 32);
+}
+
+/* --------------------------------------------------------------- lettura
+   Solo la forma del file, non il contenuto: un file vuoto (nessuna bobina,
+   nessuna stampa) e' valido lo stesso. */
+function leggi(testo) {
+  let d;
+  try { d = JSON.parse(testo); }
+  catch (e) { return { errore: 'Il file non è un JSON valido.' }; }
+
+  if (!d || typeof d !== 'object' || Array.isArray(d))
+    return { errore: 'Il file non è un JSON valido.' };
+
+  const haCampi = Array.isArray(d.filaments) || Array.isArray(d.prints) || Array.isArray(d.finances);
+  if (!haCampi || typeof d.nextId !== 'object' || d.nextId === null)
+    return { errore: 'Questo non sembra un file del vecchio gestionale MOV3DO.' };
+
+  // il vecchio gestionale ha sempre scritto version:1, sia da "Salva" che
+  // dall'autoSave: un numero diverso e' un formato che non si sa leggere
+  if (d.version !== 1)
+    return { errore: 'Versione del vecchio gestionale non riconosciuta (' + d.version + ').' };
+
+  return {
+    dati: {
+      filaments: Array.isArray(d.filaments) ? d.filaments : [],
+      prints: Array.isArray(d.prints) ? d.prints : [],
+      finances: Array.isArray(d.finances) ? d.finances : [],
+    },
+  };
+}
+
+/* -------------------------------------------------------- numeri e testo
+   "Niente numeri inventati" vale per il motore, non per questa traduzione:
+   qui un numero rovinato non puo' fermare l'importazione di tutto il resto,
+   quindi diventa 0 (o il minimo valido) con un avviso, mai NaN. */
+function numeroNonNegativo(v, fallback, avvisi, messaggio) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) { if (messaggio) avvisi.push(messaggio); return fallback; }
+  return n;
+}
+function numeroPositivo(v, fallback, avvisi, messaggio) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) { if (messaggio) avvisi.push(messaggio); return fallback; }
+  return n;
+}
+function interoPositivo(v, fallback, avvisi, messaggio) {
+  const n = Math.trunc(Number(v));
+  if (!Number.isFinite(n) || n <= 0) { if (messaggio) avvisi.push(messaggio); return fallback; }
+  return n;
+}
+// il testo passa cosi' com'e' (l'escape e' compito di chi disegna): solo il
+// tipo va reso sicuro, senno' un campo scritto a mano finisce '[object Object]'
+function testo(v, fallback) {
+  if (typeof v === 'string') return v;
+  if (v === undefined || v === null) return fallback;
+  return String(v);
+}
+
+// GG/MM/AAAA (formato di today() nel vecchio gestionale) -> AAAA-MM-GG
+function oggiISO() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getDate()).padStart(2, '0');
+}
+function convertiData(s, avvisi, contesto) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(s || '').trim());
+  const gg = m && Number(m[1]), mm = m && Number(m[2]);
+  if (!m || mm < 1 || mm > 12 || gg < 1 || gg > 31) {
+    avvisi.push((contesto ? contesto + ': ' : '') +
+      'la data "' + s + '" non è nel formato GG/MM/AAAA, sostituita con oggi.');
+    return oggiISO();
+  }
+  return m[3] + '-' + String(mm).padStart(2, '0') + '-' + String(gg).padStart(2, '0');
+}
+
+/* Il costo dell'energia: se la stampa ce l'ha gia' salvato (costoEnergia,
+   il caso normale dall'11 settembre 2026 in poi) si usa quello, senno' si
+   ricalcola con la stessa formula del vecchio gestionale (calcEnergyCost):
+   250 W di potenza media, 0,50 €/kWh, sono i dati presi prima che esistesse
+   il campo e restano gli stessi valori di partenza in impostazioni. */
+function costoEnergia(p) {
+  if (typeof p.costoEnergia === 'number' && Number.isFinite(p.costoEnergia)) return p.costoEnergia;
+  const tempo = Number(p.tempo) || 0, qty = Number(p.qty) || 1;
+  if (tempo <= 0) return 0;
+  const kWh = (250 * tempo / 60) / 1000;
+  return kWh * 0.50 * qty;
+}
+
+/* ------------------------------------------------------------- traduzione */
+async function traduci(dati, origine) {
+  const avvisi = [];
+  const filaments = dati.filaments || [];
+  const prints = dati.prints || [];
+  const finances = dati.finances || [];
+
+  /* ---- bobine (filaments) -------------------------------------------
+     Si costruisce la riga subito, ma residuo_base_g si completa solo dopo
+     aver visto tutte le stampe: e' residuo (quello che il vecchio file dice
+     essere rimasto ORA) piu' tutto quello che le stampe qui importate le
+     hanno tolto, cosi' il nuovo gestionale (base meno consumi) ritrova
+     esattamente lo stesso residuo. */
+  const bobine = [];
+  const idBobinaDi = new Map();      // vecchio id (number) -> nuovo id (uuid)
+  const vecchioIdDiBobina = new Map(); // nuovo id -> vecchio id, il verso inverso serve sotto
+  const residuoFinaleDi = new Map(); // nuovo id -> residuo del vecchio file
+  const consumoDi = new Map();       // vecchio id -> grammi consumati dalle stampe qui importate
+
+  for (const f of filaments) {
+    const chiave = origine + ':f' + f.id;
+    const id = await idPer(chiave);
+    idBobinaDi.set(f.id, id);
+    vecchioIdDiBobina.set(id, f.id);
+    const etichetta = 'la bobina "' + testo(f.col, '?') + '" (' + chiave + ')';
+    residuoFinaleDi.set(id, numeroNonNegativo(f.residuo, 0, avvisi,
+      etichetta + ': residuo non valido, impostato a 0 g.'));
+    bobine.push({
+      id,
+      materiale: testo(f.mat, 'PLA'),
+      colore: testo(f.col, ''),
+      marca: testo(f.marca, ''),
+      // il colore mostrato nei grafici del vecchio gestionale (displayColor):
+      // non c'e' altro posto dove metterlo, ed e' un colore, come "tinta" dice
+      tinta: typeof f.displayColor === 'string' ? f.displayColor : null,
+      peso_g: numeroPositivo(f.peso, 1000, avvisi,
+        etichetta + ': peso non valido, impostato a 1000 g.'),
+      costo: numeroNonNegativo(f.costo, 0, avvisi,
+        etichetta + ': costo non valido, impostato a 0.'),
+      origine: chiave,
+      // residuo_base_g arriva sotto, dopo il giro delle stampe
+    });
+  }
+
+  /* ---- stampe (prints) + vendite (sale dentro la stampa) -------------- */
+  const stampe = [];
+  const vendite = [];
+  const idStampaDi = new Map();  // vecchio id stampa -> nuovo id
+  const venditaDi = new Map();   // vecchio id stampa -> { id, finId }
+
+  for (const p of prints) {
+    const chiave = origine + ':p' + p.id;
+    const id = await idPer(chiave);
+    idStampaDi.set(p.id, id);
+    const nomeStampa = testo(p.nome, '(senza nome)');
+    const contestoStampa = 'la stampa "' + nomeStampa + '" (' + chiave + ')';
+
+    const qty = interoPositivo(p.qty, 1, avvisi,
+      contestoStampa + ': quantità non valida, impostata a 1.');
+
+    const filamenti = [];
+    for (const fd of (Array.isArray(p.filDetails) ? p.filDetails : [])) {
+      const grammi = numeroNonNegativo(fd.grammi, 0, avvisi,
+        contestoStampa + ': grammi non validi in un filamento, impostati a 0.');
+      const costo = numeroNonNegativo(fd.costo, 0, avvisi,
+        contestoStampa + ': costo non valido in un filamento, impostato a 0.');
+      // fid 0 e' il segno che il vecchio gestionale stesso usa per "riga senza
+      // bobina" (la modifica di una stampa scrive fid:0 sulle righe digitate a
+      // mano); una bobina cancellata dopo la stampa produce lo stesso effetto
+      const bobina = fd.fid && idBobinaDi.has(fd.fid) ? idBobinaDi.get(fd.fid) : null;
+      if (bobina) {
+        consumoDi.set(fd.fid, (consumoDi.get(fd.fid) || 0) + grammi * qty);
+      } else {
+        avvisi.push(contestoStampa + ': il filamento "' + testo(fd.label, '?') +
+          '" non è collegato a nessuna bobina, ' +
+          (fd.fid ? 'la bobina non è più nel file.' : 'non lo era già nel vecchio gestionale.'));
+      }
+      filamenti.push({ bobina, etichetta: testo(fd.label, ''), grammi, costo });
+    }
+
+    stampe.push({
+      id,
+      data: convertiData(p.data, avvisi, contestoStampa),
+      nome: testo(p.nome, ''),
+      tempo_min: numeroNonNegativo(p.tempo, 0, avvisi,
+        contestoStampa + ': tempo non valido, impostato a 0.'),
+      quantita: qty,
+      esito: p.esito === 'fail' ? 'fail' : 'ok',
+      note: testo(p.note, ''),
+      filamenti,
+      costo_energia: costoEnergia(p),
+      /* niente `ordine`: il vecchio gestionale non collegava le stampe al
+         chiosco, e scrivendolo vuoto un reimport cancellerebbe il
+         collegamento fatto nel frattempo nel gestionale nuovo. Una colonna
+         che manca dalla riga l'upsert non la tocca. */
+      origine: chiave,
+    });
+
+    if (p.sale && p.sale.sold) {
+      const chiaveV = origine + ':p' + p.id + ':vendita';
+      const idV = await idPer(chiaveV);
+      venditaDi.set(p.id, { id: idV, finId: p.sale.finId != null ? p.sale.finId : null });
+      vendite.push({
+        id: idV,
+        data: convertiData(p.sale.data, avvisi, 'la vendita di "' + nomeStampa + '" (' + chiaveV + ')'),
+        cliente: testo(p.sale.cliente, ''),
+        prezzo: numeroNonNegativo(p.sale.prezzo, 0, avvisi,
+          'la vendita di "' + nomeStampa + '" (' + chiaveV + '): prezzo non valido, impostato a 0.'),
+        canale: testo(p.sale.canale, 'Diretta'),
+        note: testo(p.sale.note, ''),
+        stampa: id,
+        origine: chiaveV,
+      });
+    }
+  }
+
+  // ora che si sa quanto ogni bobina e' stata consumata dalle stampe qui
+  // importate, si completa residuo_base_g (vedi il commento sopra le bobine)
+  for (const b of bobine) {
+    const consumo = consumoDi.get(vecchioIdDiBobina.get(b.id)) || 0;
+    b.residuo_base_g = residuoFinaleDi.get(b.id) + consumo;
+  }
+
+  /* ---- movimenti (finances) -------------------------------------------
+     Un movimento il cui vecchio id e' il finId di una vendita e' il «+
+     Finanze» del vecchio gestionale: prende `vendita`, cosi' il nuovo
+     gestionale sa che non va sommato di nuovo (vedi il commento su
+     `movimenti` in schema.sql). */
+  const venditaPerFinId = new Map();
+  for (const v of venditaDi.values()) if (v.finId != null) venditaPerFinId.set(v.finId, v.id);
+
+  const movimenti = [];
+  for (const n of finances) {
+    const chiave = origine + ':n' + n.id;
+    const id = await idPer(chiave);
+    const contesto = 'il movimento "' + testo(n.desc, '?') + '" (' + chiave + ')';
+    if (n.tipo !== 'spesa' && n.tipo !== 'ricavo')
+      avvisi.push(contesto + ': tipo non valido, impostato a spesa.');
+    // il vecchio gestionale non impediva un importo negativo in aggiunta (solo
+    // in modifica faceva Math.abs): qui si uniforma sempre, il segno lo porta
+    // gia' `tipo`, e la colonna ha comunque il vincolo importo >= 0
+    const importoGrezzo = Number(n.importo);
+    let importo = 0;
+    if (Number.isFinite(importoGrezzo)) importo = Math.abs(importoGrezzo);
+    else avvisi.push(contesto + ': importo non valido, impostato a 0.');
+    movimenti.push({
+      id,
+      data: convertiData(n.data, avvisi, contesto),
+      tipo: n.tipo === 'ricavo' ? 'ricavo' : 'spesa',
+      categoria: testo(n.cat, 'Altro'),
+      descrizione: testo(n.desc, ''),
+      importo,
+      vendita: venditaPerFinId.get(n.id) || null,
+      origine: chiave,
+    });
+  }
+
+  return {
+    bobine, stampe, vendite, movimenti, avvisi,
+    conta: { bobine: bobine.length, stampe: stampe.length, vendite: vendite.length, movimenti: movimenti.length },
+  };
+}
+
+radice.Vecchio = { leggi, traduci, idPer };
+})(typeof window !== 'undefined' ? window : module.exports);
+
+/* =====================================================================
+   MOV3DO — il gestionale, nella faccia admin
+   Il vecchio MakeItYours_Gestionale.html portato sul database: bobine,
+   stampe, vendite fuori dal chiosco, spese e ricavi, e un cruscotto che ci
+   aggiunge gli incassi del chiosco (gli ordini fatti). Le tabelle e le
+   ragioni delle colonne sono in supabase/schema.sql, parte «gestionale».
+
+   A differenza della coda, qui non c'e' copia locale: il gestionale lo
+   apre il titolare dal Mac, in rete, e i suoi dati non servono al banco.
+   Si legge tutto dal server quando si apre la vista, si scrive riga per
+   riga, e dopo ogni scrittura si rilegge. Senza rete lo dice e basta.
+   ===================================================================== */
+window.Gestionale = (function () {
+'use strict';
+
+const S = window.Sincro;
+const $ = (s, dove) => (dove || document).querySelector(s);
+const $$ = (s, dove) => [...(dove || document).querySelectorAll(s)];
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* Gli elenchi del vecchio gestionale, tali e quali: i dati importati li
+   usano, e un materiale o una categoria che sparisse dalla tendina
+   renderebbe una riga vecchia non piu' modificabile. */
+const MATERIALI = ['PLA', 'PETG', 'ABS', 'TPU', 'ASA', 'Nylon', 'Resina'];
+const CATEGORIE = ['Filamento', 'Energia elettrica', 'Manutenzione', 'Software/Licenze',
+  'Spedizione', 'Packaging', 'Marketing', 'Etsy/Commissioni', 'Vendita diretta',
+  'Vendita Etsy', 'Vendita B2B', 'Altro'];
+const CANALI = ['Etsy', 'Diretta', 'B2B', 'Altro'];
+
+const SCHEDE = [
+  ['cruscotto', 'Cruscotto'], ['bobine', 'Bobine'], ['stampe', 'Stampe'],
+  ['vendite', 'Vendite'], ['movimenti', 'Spese e ricavi'], ['impostazioni', 'Impostazioni'],
+];
+
+let dati = null;            // quello che c'e' sul server, letto all'apertura
+let scheda = 'cruscotto';
+let modifica = null;        // { tabella, id|null }: il modulo aperto
+let periodo = '12';         // il cruscotto: '12' mesi, 'anno', 'tutto'
+let caricando = null;
+
+/* ------------------------------------------------------------- numeri */
+
+const euro = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' });
+const soldi = (v) => euro.format(Number(v) || 0);
+const numero = (v, cifre = 0) => (Number(v) || 0).toLocaleString('it-IT',
+  { minimumFractionDigits: cifre, maximumFractionDigits: cifre });
+const oggi = () => new Date().toISOString().slice(0, 10);
+const giorno = (iso) => iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '';
+const mese = (iso) => String(iso || '').slice(0, 7);
+const NOMI_MESE = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+/* «1 ordine», «3 ordini»: il cruscotto conta cose, e il plurale fisso
+   stona proprio sui numeri piccoli, che all'inizio sono tutti. */
+const conta = (n, uno, tanti) => numero(n) + ' ' + (n === 1 ? uno : tanti);
+const nomeMese = (m) => NOMI_MESE[Number(m.slice(5, 7)) - 1] + ' ' + m.slice(2, 4);
+
+function impostazione(chiave, ripiego) {
+  const r = (dati && dati.impostazioni || []).find(x => x.chiave === chiave);
+  return Object.assign({}, ripiego, r && r.valore);
+}
+const energia = () => impostazione('energia', { potenza_w: 250, tariffa_kwh: 0.5 });
+const soglie = () => impostazione('soglie', { basso: 30, esaurito: 10 });
+const passaggio = () => impostazione('passaggio', { data: null }).data;
+
+/* Il costo dell'energia di una stampa. Il tempo e' quello di tutta la
+   stampa, quantita' compresa: il vecchio gestionale lo chiamava «tempo
+   totale» ma poi lo moltiplicava ancora per la quantita', e dieci pezzi
+   in 90 minuti pagavano 900 minuti di corrente. Le stampe importate
+   tengono il costo che avevano. */
+function costoEnergia(tempoMin) {
+  const e = energia();
+  return (Number(e.potenza_w) || 0) * (Number(tempoMin) || 0) / 60 / 1000 * (Number(e.tariffa_kwh) || 0);
+}
+
+const costoMateriale = (s) => (s.filamenti || []).reduce((t, f) => t + (Number(f.costo) || 0), 0);
+const costoStampa = (s) => costoMateriale(s) + (Number(s.costo_energia) || 0);
+const grammiStampa = (s) => (s.filamenti || []).reduce((t, f) => t + (Number(f.grammi) || 0), 0) *
+                            (Number(s.quantita) || 1);
+
+/* Il residuo: la base meno quello che le stampe hanno consumato. Non si
+   scala a mano, quindi correggere o togliere una stampa lo rimette a posto
+   da solo (vedi schema.sql). */
+function consumi() {
+  const c = new Map();
+  for (const s of dati.stampe)
+    for (const f of s.filamenti || [])
+      if (f.bobina) c.set(f.bobina, (c.get(f.bobina) || 0) + (Number(f.grammi) || 0) * (Number(s.quantita) || 1));
+  return c;
+}
+function statoBobina(b, consumato) {
+  const residuo = (Number(b.residuo_base_g) || 0) - (consumato || 0);
+  const pct = b.peso_g > 0 ? residuo / b.peso_g * 100 : 0;
+  const sg = soglie();
+  const stato = pct <= sg.esaurito ? 'esaurito' : pct <= sg.basso ? 'basso' : 'ok';
+  return { residuo, pct, stato };
+}
+const nomeBobina = (b) => [b.materiale, b.colore].filter(Boolean).join(' ') + (b.marca ? ' · ' + b.marca : '');
+
+/* ----------------------------------------------------------------- rete */
+
+/* Tutte le righe di una tabella, a pagine: il server ne da' al massimo
+   mille per volta, e gli ordini fatti prima o poi ci arrivano. */
+async function tutte(tabella, filtro) {
+  const fuori = [];
+  const PAGINA = 1000;
+  for (let dal = 0; ; dal += PAGINA) {
+    const r = await S.rest('GET', '/rest/v1/' + tabella + '?' + filtro +
+                           '&limit=' + PAGINA + '&offset=' + dal);
+    fuori.push(...(r || []));
+    if (!r || r.length < PAGINA) return fuori;
+  }
+}
+
+async function carica() {
+  const [bobine, stampe, vendite, movimenti, impostazioni, ordini] = await Promise.all([
+    tutte('bobine', 'select=*&eliminato=is.false&order=creata_il'),
+    tutte('stampe', 'select=*&eliminato=is.false&order=data.desc,creata_il.desc'),
+    tutte('vendite', 'select=*&eliminato=is.false&order=data.desc,creata_il.desc'),
+    tutte('movimenti', 'select=*&eliminato=is.false&order=data.desc,creata_il.desc'),
+    tutte('impostazioni', 'select=chiave,valore'),
+    // gli incassi del chiosco: gli ordini fatti, con la data in cui lo sono diventati
+    tutte('ordini', 'select=numero,tipo,cliente,totale,fatto_il&stato=eq.fatto&eliminato=is.false' +
+                    '&order=fatto_il.desc'),
+  ]);
+  dati = { bobine, stampe, vendite, movimenti, impostazioni, ordini };
+}
+
+/* Una riga: nuova se non ha id, senno' si aggiorna. */
+async function scrivi(tabella, riga) {
+  const corpo = Object.assign({}, riga);
+  const id = corpo.id;
+  delete corpo.id;
+  if (id) await S.rest('PATCH', '/rest/v1/' + tabella + '?id=eq.' + id, corpo, { Prefer: 'return=minimal' });
+  else await S.rest('POST', '/rest/v1/' + tabella, corpo, { Prefer: 'return=minimal' });
+}
+
+/* Molte righe insieme, che ci siano gia' o no: e' l'importazione, che
+   reimportando lo stesso file deve aggiornare e non raddoppiare. A gruppi,
+   per non mandare un corpo enorme. */
+async function versa(tabella, righe, chiave) {
+  const GRUPPO = 200;
+  for (let i = 0; i < righe.length; i += GRUPPO)
+    await S.rest('POST', '/rest/v1/' + tabella + (chiave ? '?on_conflict=' + chiave : ''),
+                 righe.slice(i, i + GRUPPO),
+                 { Prefer: 'resolution=merge-duplicates,return=minimal' });
+}
+
+const togli = (tabella, id) =>
+  S.rest('PATCH', '/rest/v1/' + tabella + '?id=eq.' + id, { eliminato: true }, { Prefer: 'return=minimal' });
+
+async function salvaImpostazione(chiave, valore) {
+  await S.rest('POST', '/rest/v1/impostazioni', { chiave, valore },
+               { Prefer: 'resolution=merge-duplicates,return=minimal' });
+}
+
+/* ------------------------------------------------------------- disegno */
+
+const corpo = () => $('#gestCorpo');
+
+function disegna() {
+  const dove = $('#gest');
+  if (!dove) return;
+  if (!$('#gestCorpo')) {
+    dove.innerHTML = '<nav class="gestSchede">' + SCHEDE.map(([k, et]) =>
+      '<button type="button" data-gscheda="' + k + '">' + et + '</button>').join('') +
+      '<button type="button" class="aggiorna" data-gricarica="1" title="Rileggi dal server">↻</button></nav>' +
+      '<div id="gestCorpo"></div>';
+  }
+  $$('.gestSchede [data-gscheda]').forEach(b =>
+    b.setAttribute('aria-selected', String(b.dataset.gscheda === scheda)));
+  if (!dati) { corpo().innerHTML = '<p class="guida">Leggo i dati dal server…</p>'; return; }
+  const viste = { cruscotto: vistaCruscotto, bobine: vistaBobine, stampe: vistaStampe,
+                  vendite: vistaVendite, movimenti: vistaMovimenti, impostazioni: vistaImpostazioni };
+  corpo().innerHTML = viste[scheda]();
+}
+
+function errore(e) {
+  const senzaRete = e && e.rete;
+  corpo().innerHTML = '<div class="avviso errore">' + (senzaRete
+    ? 'Il gestionale lavora in rete, e il server adesso non risponde. La coda invece ' +
+      'funziona anche così.'
+    : 'Il server ha risposto con un errore: ' + esc(e && e.message || e)) + '</div>' +
+    '<button type="button" class="bottone piccolo" data-gricarica="1">Riprova</button>';
+}
+
+async function apri() {
+  disegna();
+  if (caricando) return caricando;
+  caricando = (async () => {
+    try { await carica(); disegna(); }
+    catch (e) { errore(e); }
+    finally { caricando = null; }
+  })();
+  return caricando;
+}
+
+/* Dopo ogni scrittura si rilegge tutto: le tabelle sono piccole, e cosi'
+   quello che si vede e' sempre quello che c'e' sul server. */
+async function eFatto(promessa, messaggio) {
+  try {
+    await promessa;
+    modifica = null;
+    await carica();
+    disegna();
+    if (messaggio) nota(messaggio);
+  } catch (e) {
+    alert(e && e.rete ? 'Il server non risponde: non ho salvato.' : 'Non ho salvato: ' + (e.message || e));
+  }
+}
+
+function nota(t) {
+  const n = document.createElement('div');
+  n.className = 'gestNota';
+  n.textContent = t;
+  $('#gest').appendChild(n);
+  setTimeout(() => n.remove(), 2600);
+}
+
+const campo = (et, html, largo) =>
+  '<label class="campo' + (largo ? ' largo' : '') + '">' + et + html + '</label>';
+const inp = (nome, valore, tipo = 'text', extra = '') =>
+  '<input name="' + nome + '" type="' + tipo + '" value="' + esc(valore == null ? '' : valore) + '" ' + extra + '>';
+const sel = (nome, voci, scelta) => '<select name="' + nome + '">' + voci.map(v => {
+  const [val, et] = Array.isArray(v) ? v : [v, v];
+  return '<option value="' + esc(val) + '"' + (String(val) === String(scelta) ? ' selected' : '') + '>' +
+    esc(et) + '</option>';
+}).join('') + '</select>';
+const bottoniModulo = (tabella) =>
+  '<div class="fila"><button type="submit" class="bottone forte piccolo">Salva</button>' +
+  '<button type="button" class="bottone piccolo" data-gannulla="1">Annulla</button></div>';
+
+const vuoto = (t) => '<p class="guida vuoto">' + t + '</p>';
+const azioni = (tabella, id) =>
+  '<span class="azioni"><button type="button" class="via" data-gmodifica="' + tabella + '" data-id="' + id +
+  '" title="Modifica">✎</button><button type="button" class="via" data-gtogli="' + tabella +
+  '" data-id="' + id + '" title="Togli">✕</button></span>';
+
+/* ------------------------------------------------------------ cruscotto */
+
+/* I soldi del cruscotto sono quelli di cassa: quello che entra (ordini del
+   chiosco fatti, vendite, ricavi a mano) contro quello che esce (le spese).
+   Il costo di produzione delle stampe e' un'altra cosa, e si mostra a
+   parte: il filamento comprato e' gia' una spesa, e sommarlo di nuovo come
+   consumo lo conterebbe due volte. */
+function entrate() {
+  const p = passaggio();
+  const voci = [];
+  for (const o of dati.ordini) {
+    const d = String(o.fatto_il || '').slice(0, 10);
+    // prima del passaggio gli incassi del chiosco stanno gia' nei movimenti del vecchio gestionale
+    if (!d || (p && d < p) || o.totale == null) continue;
+    voci.push({ data: d, importo: Number(o.totale) || 0, fonte: 'chiosco' });
+  }
+  for (const v of dati.vendite) voci.push({ data: v.data, importo: Number(v.prezzo) || 0, fonte: 'vendite' });
+  for (const m of dati.movimenti)
+    if (m.tipo === 'ricavo' && !m.vendita) voci.push({ data: m.data, importo: Number(m.importo) || 0, fonte: 'movimenti' });
+  return voci;
+}
+const uscite = () => dati.movimenti.filter(m => m.tipo === 'spesa')
+  .map(m => ({ data: m.data, importo: Number(m.importo) || 0, categoria: m.categoria }));
+
+function mesiDelPeriodo(voci) {
+  const ora = new Date();
+  const fine = ora.toISOString().slice(0, 7);
+  let inizio;
+  if (periodo === 'anno') inizio = ora.getFullYear() + '-01';
+  else if (periodo === '12') {
+    const d = new Date(ora.getFullYear(), ora.getMonth() - 11, 1);
+    inizio = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  } else {
+    inizio = voci.map(v => mese(v.data)).filter(Boolean).sort()[0] || fine;
+  }
+  const mesi = [];
+  let [a, m] = inizio.split('-').map(Number);
+  while ((a + '-' + String(m).padStart(2, '0')) <= fine) {
+    mesi.push(a + '-' + String(m).padStart(2, '0'));
+    if (++m > 12) { m = 1; a++; }
+  }
+  return mesi;
+}
+
+function vistaCruscotto() {
+  const G = window.Grafici;
+  const tutteE = entrate(), tutteU = uscite();
+  const mesi = mesiDelPeriodo(tutteE.concat(tutteU));
+  const dentro = (v) => mesi.includes(mese(v.data));
+  const E = tutteE.filter(dentro), U = tutteU.filter(dentro);
+  const somma = (xs) => xs.reduce((t, x) => t + x.importo, 0);
+  const perMese = (xs) => mesi.map(m => xs.filter(x => mese(x.data) === m).reduce((t, x) => t + x.importo, 0));
+  const eM = perMese(E), uM = perMese(U);
+  let cum = 0;
+  const margineCum = mesi.map((m, i) => (cum += eM[i] - uM[i]));
+
+  const stampe = dati.stampe.filter(s => mesi.includes(mese(s.data)));
+  const riuscite = stampe.filter(s => s.esito === 'ok').length;
+  const produzione = stampe.reduce((t, s) => t + costoStampa(s), 0);
+  const cons = consumi();
+  const esaurite = dati.bobine.filter(b => statoBobina(b, cons.get(b.id)).stato !== 'ok').length;
+  const chiosco = E.filter(x => x.fonte === 'chiosco');
+
+  const perCategoria = new Map();
+  for (const u of U) perCategoria.set(u.categoria, (perCategoria.get(u.categoria) || 0) + u.importo);
+  const perBobina = dati.bobine.map(b => {
+    let g = 0;
+    for (const s of stampe) for (const f of s.filamenti || [])
+      if (f.bobina === b.id) g += (Number(f.grammi) || 0) * (Number(s.quantita) || 1);
+    return { nome: nomeBobina(b), valore: g, colore: b.tinta || undefined };
+  }).filter(x => x.valore > 0);
+
+  const p = passaggio();
+  // il titolo si scrive fuori dal disegno: dentro l'SVG c'e' solo per chi legge con la voce
+  const grafico = (titolo, html) => '<div class="gestGrafico"><h3>' + esc(titolo) + '</h3>' + html + '</div>';
+  const margine = somma(E) - somma(U);
+  return '<div class="fila filtri">' + [['12', 'Ultimi 12 mesi'], ['anno', 'Quest’anno'], ['tutto', 'Da sempre']]
+      .map(([k, et]) => '<button type="button" class="bottone piccolo" data-gperiodo="' + k + '" aria-pressed="' +
+        (periodo === k) + '">' + et + '</button>').join('') + '</div>' +
+    '<div class="gestCifre">' +
+      G.cifra({ etichetta: 'Entrate', valore: soldi(somma(E)),
+                nota: conta(chiosco.length, 'ordine del chiosco', 'ordini del chiosco') + ', ' +
+                      conta(E.filter(x => x.fonte === 'vendite').length, 'vendita', 'vendite') }) +
+      G.cifra({ etichetta: 'Spese', valore: soldi(somma(U)), nota: conta(U.length, 'movimento', 'movimenti') }) +
+      G.cifra({ etichetta: 'Margine di cassa', valore: soldi(margine), tono: margine < 0 ? 'negativo' : 'positivo',
+                nota: 'entrate meno spese' }) +
+      G.cifra({ etichetta: 'Stampe', valore: numero(stampe.length),
+                nota: stampe.length ? numero(riuscite / stampe.length * 100) + '% riuscite' : 'nessuna' }) +
+      G.cifra({ etichetta: 'Costo di produzione', valore: soldi(produzione), nota: 'materiale ed energia delle stampe' }) +
+      G.cifra({ etichetta: 'Bobine da guardare', valore: numero(esaurite), tono: esaurite ? 'negativo' : undefined,
+                nota: 'sotto il ' + soglie().basso + '%' }) +
+    '</div>' +
+    '<div class="gestGriglia">' +
+      grafico('Entrate e spese per mese', G.colonne({ titolo: 'Entrate e spese per mese', etichette: mesi.map(nomeMese), formato: soldi,
+        serie: [{ nome: 'Entrate', valori: eM, colore: 'var(--accento)' },
+                { nome: 'Spese', valori: uM, colore: 'var(--magenta)' }] })) +
+      grafico('Margine di cassa, sommato mese dopo mese', G.linea({ titolo: 'Margine di cassa, sommato mese dopo mese', etichette: mesi.map(nomeMese),
+        valori: margineCum, formato: soldi })) +
+      grafico('Spese per categoria', G.barre({ titolo: 'Spese per categoria', formato: soldi,
+        voci: [...perCategoria].map(([nome, valore]) => ({ nome, valore })) })) +
+      grafico('Filamento consumato per bobina', G.barre({ titolo: 'Filamento consumato per bobina', formato: (v) => numero(v) + ' g',
+        voci: perBobina })) +
+    '</div>' +
+    '<p class="guida piccola">Gli incassi del chiosco sono gli ordini segnati <b>fatto</b>, al prezzo del ' +
+    'catalogo, nel giorno in cui sono stati segnati' + (p ? ', dal ' + giorno(p) + ' in poi: prima di quel ' +
+    'giorno sono nei movimenti del vecchio gestionale' : '') + '. La data si cambia da Impostazioni.</p>';
+}
+
+/* --------------------------------------------------------------- bobine */
+
+function moduloBobina(b) {
+  const nuova = !b.id;
+  return '<form class="gestModulo" data-gsalva="bobine">' +
+    '<h3>' + (nuova ? 'Nuova bobina' : 'Modifica bobina') + '</h3><div class="griglia2">' +
+    campo('Materiale', sel('materiale', MATERIALI, b.materiale || 'PLA')) +
+    campo('Colore', inp('colore', b.colore, 'text', 'required placeholder="Nero"')) +
+    campo('Marca', inp('marca', b.marca)) +
+    campo('Tinta (per riconoscerla)', inp('tinta', b.tinta || '#888888', 'color')) +
+    campo('Peso della bobina (g)', inp('peso_g', b.peso_g || 1000, 'number', 'min="1" step="1" required')) +
+    campo('Costo (€)', inp('costo', b.costo == null ? '' : b.costo, 'number', 'min="0" step="0.01"')) +
+    (nuova ? campo('Grammi rimasti adesso', inp('residuo', 1000, 'number', 'min="0" step="1"')) : '') +
+    '</div>' + bottoniModulo() + '</form>';
+}
+
+/* Pesare una bobina: il numero vero dalla bilancia sposta la base, non le
+   stampe. Da li' il residuo riparte da quello che si e' pesato. */
+function moduloPesa(b, consumato) {
+  const st = statoBobina(b, consumato);
+  return '<form class="gestModulo" data-gsalva="pesa" data-id="' + b.id + '">' +
+    '<h3>Pesa ' + esc(nomeBobina(b)) + '</h3>' +
+    '<p class="guida">Per il gestionale restano ' + numero(st.residuo) + ' g. Scrivi quanto pesa davvero il ' +
+    'filamento rimasto (senza il rocchetto): da qui in poi il residuo riparte da quel numero.</p>' +
+    '<div class="griglia2">' + campo('Grammi rimasti, pesati', inp('pesati', Math.round(st.residuo), 'number',
+      'min="0" step="1" required')) + '</div>' + bottoniModulo() + '</form>';
+}
+
+function vistaBobine() {
+  const cons = consumi();
+  const aperta = modifica && modifica.tabella === 'bobine';
+  const pesa = modifica && modifica.tabella === 'pesa';
+  const b0 = aperta && modifica.id ? dati.bobine.find(b => b.id === modifica.id) : {};
+  const bp = pesa ? dati.bobine.find(b => b.id === modifica.id) : null;
+  return (aperta ? moduloBobina(b0) : pesa && bp ? moduloPesa(bp, cons.get(bp.id)) :
+      '<div class="fila"><button type="button" class="bottone forte piccolo" data-gnuovo="bobine">' +
+      'Aggiungi bobina</button></div>') +
+    (dati.bobine.length ? '<div class="gestTabella"><table><thead><tr><th></th><th>Bobina</th><th>Residuo</th>' +
+      '<th class="n">Peso</th><th class="n">Costo</th><th class="n">€/kg</th><th></th></tr></thead><tbody>' +
+      dati.bobine.map(b => {
+        const st = statoBobina(b, cons.get(b.id));
+        return '<tr><td><span class="tinta" style="background:' + esc(b.tinta || '#888') + '"></span></td>' +
+          '<td><b>' + esc([b.materiale, b.colore].filter(Boolean).join(' ')) + '</b>' +
+            (b.marca ? '<br><span class="tenue">' + esc(b.marca) + '</span>' : '') + '</td>' +
+          '<td><div class="residuo" data-stato="' + st.stato + '"><span style="width:' +
+            Math.max(0, Math.min(100, st.pct)).toFixed(1) + '%"></span></div>' +
+            '<span class="tenue">' + numero(st.residuo) + ' g · ' + numero(st.pct) + '%</span></td>' +
+          '<td class="n">' + numero(b.peso_g) + ' g</td>' +
+          '<td class="n">' + soldi(b.costo) + '</td>' +
+          '<td class="n">' + (b.peso_g > 0 ? soldi(b.costo / b.peso_g * 1000) : '') + '</td>' +
+          '<td class="n"><button type="button" class="bottone piccolo" data-gpesa="' + b.id + '">Pesa</button>' +
+            azioni('bobine', b.id) + '</td></tr>';
+      }).join('') + '</tbody></table></div>'
+    : vuoto('Nessuna bobina ancora. Aggiungine una, oppure importa il vecchio gestionale da Impostazioni.'));
+}
+
+/* --------------------------------------------------------------- stampe */
+
+function rigaFilamento(f, i) {
+  return '<div class="riga rigaFil">' +
+    sel('bobina_' + i, [['', '— bobina —']].concat(dati.bobine.map(b => [b.id, nomeBobina(b)])), f.bobina || '') +
+    '<input name="grammi_' + i + '" type="number" min="0" step="0.1" placeholder="grammi" value="' +
+      esc(f.grammi == null ? '' : f.grammi) + '" style="width:110px">' +
+    '<span class="tenue">g a pezzo</span>' +
+    '<button type="button" class="via" data-gtogliriga="1" title="Togli">✕</button></div>';
+}
+
+function moduloStampa(s) {
+  const fil = (s.filamenti && s.filamenti.length ? s.filamenti : [{}]);
+  return '<form class="gestModulo" data-gsalva="stampe">' +
+    '<h3>' + (s.id ? 'Modifica stampa' : 'Nuova stampa') + '</h3><div class="griglia2">' +
+    campo('Modello', inp('nome', s.nome, 'text', 'required placeholder="Portachiavi Anna"')) +
+    campo('Data', inp('data', s.data || oggi(), 'date', 'required')) +
+    campo('Tempo di stampa, tutto (min)', inp('tempo_min', s.tempo_min == null ? '' : s.tempo_min, 'number', 'min="0" step="1"')) +
+    campo('Pezzi', inp('quantita', s.quantita || 1, 'number', 'min="1" step="1" required')) +
+    campo('Esito', sel('esito', [['ok', 'Riuscita'], ['fail', 'Fallita']], s.esito || 'ok')) +
+    campo('Ordine del chiosco (se c’è)', inp('ordine', s.ordine, 'text', 'placeholder="A-042"')) +
+    campo('Note', inp('note', s.note), true) +
+    '</div><h4>Filamenti usati</h4><div class="righeFil">' + fil.map(rigaFilamento).join('') + '</div>' +
+    '<button type="button" class="bottone piccolo" data-grigafil="1">Aggiungi filamento</button>' +
+    '<p class="guida piccola">Il costo del materiale si fissa quando salvi, al prezzo di adesso delle bobine; ' +
+    'quello dell’energia con la stampante di Impostazioni.</p>' +
+    bottoniModulo() + '</form>';
+}
+
+function vistaStampe() {
+  const aperta = modifica && modifica.tabella === 'stampe';
+  const s0 = aperta && modifica.id ? dati.stampe.find(s => s.id === modifica.id) : {};
+  const venduta = new Set(dati.vendite.filter(v => v.stampa).map(v => v.stampa));
+  return (aperta ? moduloStampa(s0) :
+      '<div class="fila"><button type="button" class="bottone forte piccolo" data-gnuovo="stampe">' +
+      'Registra una stampa</button></div>') +
+    (dati.stampe.length ? '<div class="gestTabella"><table><thead><tr><th>Data</th><th>Modello</th>' +
+      '<th>Filamenti</th><th class="n">Grammi</th><th class="n">Tempo</th><th class="n">Pezzi</th>' +
+      '<th class="n">Costo</th><th>Esito</th><th></th></tr></thead><tbody>' +
+      dati.stampe.map(s => '<tr><td>' + giorno(s.data) + '</td>' +
+        '<td><b>' + esc(s.nome) + '</b>' + (s.ordine ? ' <span class="tenue">· ' + esc(s.ordine) + '</span>' : '') +
+          (venduta.has(s.id) ? ' <span class="etichetta">venduta</span>' : '') +
+          (s.note ? '<br><span class="tenue">' + esc(s.note) + '</span>' : '') + '</td>' +
+        '<td>' + (s.filamenti || []).map(f => {
+          const b = f.bobina && dati.bobine.find(x => x.id === f.bobina);
+          return '<span class="filo"><span class="tinta piccola" style="background:' +
+            esc(b && b.tinta || '#888') + '"></span>' + esc(b ? [b.materiale, b.colore].join(' ') : f.etichetta || '?') +
+            ' ' + numero(f.grammi, 1) + ' g</span>';
+        }).join(' ') + '</td>' +
+        '<td class="n">' + numero(grammiStampa(s)) + '</td>' +
+        '<td class="n">' + (s.tempo_min ? Math.floor(s.tempo_min / 60) + 'h ' + String(Math.round(s.tempo_min % 60)).padStart(2, '0') : '') + '</td>' +
+        '<td class="n">' + numero(s.quantita) + '</td>' +
+        '<td class="n" title="materiale ' + soldi(costoMateriale(s)) + ', energia ' + soldi(s.costo_energia) + '">' +
+          soldi(costoStampa(s)) + '</td>' +
+        '<td><span class="esito" data-v="' + esc(s.esito) + '">' + (s.esito === 'ok' ? 'riuscita' : 'fallita') + '</span></td>' +
+        '<td class="n">' + azioni('stampe', s.id) + '</td></tr>').join('') + '</tbody></table></div>'
+    : vuoto('Nessuna stampa registrata.'));
+}
+
+/* -------------------------------------------------------------- vendite */
+
+function moduloVendita(v) {
+  return '<form class="gestModulo" data-gsalva="vendite">' +
+    '<h3>' + (v.id ? 'Modifica vendita' : 'Nuova vendita') + '</h3><div class="griglia2">' +
+    campo('Data', inp('data', v.data || oggi(), 'date', 'required')) +
+    campo('Cliente', inp('cliente', v.cliente)) +
+    campo('Prezzo (€)', inp('prezzo', v.prezzo == null ? '' : v.prezzo, 'number', 'min="0" step="0.01" required')) +
+    campo('Canale', sel('canale', CANALI, v.canale || 'Diretta')) +
+    campo('Stampa venduta (per il margine)', sel('stampa', [['', '— nessuna —']].concat(
+      dati.stampe.map(s => [s.id, giorno(s.data) + ' · ' + s.nome])), v.stampa || '')) +
+    campo('Note', inp('note', v.note)) +
+    '</div>' + bottoniModulo() + '</form>';
+}
+
+function vistaVendite() {
+  const aperta = modifica && modifica.tabella === 'vendite';
+  const v0 = aperta && modifica.id ? dati.vendite.find(v => v.id === modifica.id) : {};
+  const p = passaggio();
+  const chiosco = dati.ordini.filter(o => !p || String(o.fatto_il || '').slice(0, 10) >= p).slice(0, 50);
+  return (aperta ? moduloVendita(v0) :
+      '<div class="fila"><button type="button" class="bottone forte piccolo" data-gnuovo="vendite">' +
+      'Registra una vendita</button></div>') +
+    '<p class="guida piccola">Qui vanno le vendite che non passano dal chiosco (Etsy, dirette, B2B). ' +
+    'Quelle del chiosco sono già gli ordini fatti, qui sotto: non vanno scritte di nuovo.</p>' +
+    (dati.vendite.length ? '<div class="gestTabella"><table><thead><tr><th>Data</th><th>Cliente</th>' +
+      '<th>Canale</th><th>Stampa</th><th class="n">Prezzo</th><th class="n">Margine</th><th></th></tr></thead><tbody>' +
+      dati.vendite.map(v => {
+        const s = v.stampa && dati.stampe.find(x => x.id === v.stampa);
+        const m = s ? v.prezzo - costoStampa(s) : null;
+        return '<tr><td>' + giorno(v.data) + '</td><td><b>' + esc(v.cliente) + '</b>' +
+          (v.note ? '<br><span class="tenue">' + esc(v.note) + '</span>' : '') + '</td>' +
+          '<td>' + esc(v.canale) + '</td><td>' + (s ? esc(s.nome) : '<span class="tenue">—</span>') + '</td>' +
+          '<td class="n">' + soldi(v.prezzo) + '</td>' +
+          '<td class="n">' + (m == null ? '' : '<span class="' + (m < 0 ? 'negativo' : 'positivo') + '">' + soldi(m) +
+            ' · ' + numero(v.prezzo > 0 ? m / v.prezzo * 100 : 0) + '%</span>') + '</td>' +
+          '<td class="n">' + azioni('vendite', v.id) + '</td></tr>';
+      }).join('') + '</tbody></table></div>' : vuoto('Nessuna vendita fuori dal chiosco.')) +
+    '<h3 class="sotto">Dal chiosco' + (p ? ', dal ' + giorno(p) : '') + '</h3>' +
+    (chiosco.length ? '<div class="gestTabella"><table><thead><tr><th>Fatto il</th><th>Ordine</th><th>Cliente</th>' +
+      '<th>Cosa</th><th class="n">Prezzo</th></tr></thead><tbody>' + chiosco.map(o =>
+        '<tr><td>' + giorno(String(o.fatto_il || '').slice(0, 10)) + '</td><td>' + esc(o.numero) + '</td><td>' +
+        esc(o.cliente) + '</td><td>' + esc(o.tipo) + '</td><td class="n">' +
+        (o.totale == null ? '' : soldi(o.totale)) + '</td></tr>').join('') + '</tbody></table></div>' +
+      (dati.ordini.length > chiosco.length ? '<p class="guida piccola">Gli ultimi 50.</p>' : '')
+    : vuoto('Nessun ordine del chiosco segnato fatto.'));
+}
+
+/* ------------------------------------------------------------ movimenti */
+
+function moduloMovimento(m) {
+  return '<form class="gestModulo" data-gsalva="movimenti">' +
+    '<h3>' + (m.id ? 'Modifica movimento' : 'Nuovo movimento') + '</h3><div class="griglia2">' +
+    campo('Data', inp('data', m.data || oggi(), 'date', 'required')) +
+    campo('Tipo', sel('tipo', [['spesa', 'Spesa'], ['ricavo', 'Ricavo']], m.tipo || 'spesa')) +
+    campo('Categoria', sel('categoria', CATEGORIE, m.categoria || 'Altro')) +
+    campo('Importo (€)', inp('importo', m.importo == null ? '' : m.importo, 'number', 'min="0" step="0.01" required')) +
+    campo('Descrizione', inp('descrizione', m.descrizione), true) +
+    '</div>' + bottoniModulo() + '</form>';
+}
+
+function vistaMovimenti() {
+  const aperta = modifica && modifica.tabella === 'movimenti';
+  const m0 = aperta && modifica.id ? dati.movimenti.find(m => m.id === modifica.id) : {};
+  return (aperta ? moduloMovimento(m0) :
+      '<div class="fila"><button type="button" class="bottone forte piccolo" data-gnuovo="movimenti">' +
+      'Aggiungi spesa o ricavo</button></div>') +
+    (dati.movimenti.length ? '<div class="gestTabella"><table><thead><tr><th>Data</th><th>Tipo</th>' +
+      '<th>Categoria</th><th>Descrizione</th><th class="n">Importo</th><th></th></tr></thead><tbody>' +
+      dati.movimenti.map(m => '<tr' + (m.vendita ? ' class="spento"' : '') + '><td>' + giorno(m.data) + '</td>' +
+        '<td><span class="esito" data-v="' + (m.tipo === 'spesa' ? 'fail' : 'ok') + '">' + esc(m.tipo) + '</span></td>' +
+        '<td>' + esc(m.categoria) + '</td><td>' + esc(m.descrizione) +
+          (m.vendita ? '<br><span class="tenue">copia di una vendita dal vecchio gestionale: nei conti non si somma</span>' : '') +
+        '</td><td class="n">' + (m.tipo === 'spesa' ? '−' : '') + soldi(m.importo) + '</td>' +
+        '<td class="n">' + azioni('movimenti', m.id) + '</td></tr>').join('') + '</tbody></table></div>'
+    : vuoto('Nessun movimento.'));
+}
+
+/* --------------------------------------------------------- impostazioni */
+
+let anteprimaVecchio = null;   // { origine, file, trad } in attesa di conferma
+
+function vistaImpostazioni() {
+  const e = energia(), sg = soglie(), p = passaggio();
+  const a = anteprimaVecchio;
+  return '<form class="gestModulo" data-gsalva="impostazioni">' +
+    '<h3>Regole</h3><div class="griglia2">' +
+    campo('Potenza media della stampante (W)', inp('potenza_w', e.potenza_w, 'number', 'min="0" step="1"')) +
+    campo('Energia (€ per kWh)', inp('tariffa_kwh', e.tariffa_kwh, 'number', 'min="0" step="0.01"')) +
+    campo('Bobina «bassa» sotto il (%)', inp('basso', sg.basso, 'number', 'min="0" max="100" step="1"')) +
+    campo('Bobina «esaurita» sotto il (%)', inp('esaurito', sg.esaurito, 'number', 'min="0" max="100" step="1"')) +
+    campo('Incassi del chiosco contati dal', inp('passaggio', p || '', 'date')) +
+    '</div><p class="guida piccola">Potenza e tariffa sono quelle del vecchio gestionale, non misurate qui: ' +
+    'valgono per le stampe registrate da ora in poi. La data di passaggio serve se nel vecchio gestionale gli ' +
+    'incassi del chiosco li scrivevi a mano: prima di quel giorno contano quelli, dopo gli ordini fatti. ' +
+    'Vuota, contano tutti gli ordini.</p>' +
+    '<div class="fila"><button type="submit" class="bottone forte piccolo">Salva le regole</button></div></form>' +
+
+    '<div class="sezione"><h3>Dal vecchio gestionale</h3>' +
+    '<p>Nel vecchio gestionale premi <b>Salva</b>: esce un file .json. Caricalo qui e dagli il nome del ' +
+    'dispositivo da cui viene (Mac, iPad…): i vecchi numeri ripartono da 1 su ogni dispositivo, e il nome ' +
+    'li tiene distinti. Ricaricare un file più recente dello stesso dispositivo aggiorna, non raddoppia.</p>' +
+    (a ? '<div class="avviso">Nel file <b>' + esc(a.file) + '</b> («' + esc(a.origine) + '»): <b>' +
+        a.trad.conta.bobine + '</b> bobine, <b>' + a.trad.conta.stampe + '</b> stampe, <b>' + a.trad.conta.vendite +
+        '</b> vendite, <b>' + a.trad.conta.movimenti + '</b> movimenti.' +
+        (a.trad.avvisi.length ? '<ul>' + a.trad.avvisi.slice(0, 12).map(x => '<li>' + esc(x) + '</li>').join('') +
+          (a.trad.avvisi.length > 12 ? '<li>… e altri ' + (a.trad.avvisi.length - 12) + '</li>' : '') + '</ul>' : '') +
+        '</div>' +
+        '<div class="griglia2">' + campo('Incassi del chiosco contati dal', '<input type="date" id="gPassaggio" value="' +
+          esc(p || oggi()) + '">') + '</div>' +
+        '<div class="fila"><button type="button" class="bottone forte piccolo" data-gvecchio="conferma">Importa</button>' +
+        '<button type="button" class="bottone piccolo" data-gvecchio="annulla">Annulla</button></div>'
+      : '<div class="griglia2">' + campo('Nome del dispositivo', '<input type="text" id="gOrigine" placeholder="Mac">') +
+        '</div><div class="fila"><button type="button" class="bottone piccolo" data-gvecchio="scegli">' +
+        'Scegli il file…</button></div>') +
+    '</div>' +
+
+    '<div class="sezione"><h3>Copia di tutto</h3>' +
+    '<p>Un file solo con ordini (tutti, anche i vecchi che i tablet non tengono più), catalogo, postazioni e ' +
+    'gestionale. È la copia da tenere al sicuro: il piano gratuito del server non ne fa di scaricabili.</p>' +
+    '<div class="fila"><button type="button" class="bottone piccolo" data-gcopia="esporta">Scarica la copia</button>' +
+    '<button type="button" class="bottone piccolo" data-gcopia="importa">Rimetti una copia…</button></div>' +
+    '<p class="guida piccola">Rimettere una copia aggiunge e aggiorna, non cancella niente di quello che c’è.</p></div>' +
+
+    '<div class="sezione"><h3>Fogli per i conti</h3>' +
+    '<p>Una tabella per volta, da aprire in Numbers o Excel.</p><div class="fila">' +
+    [['bobine', 'Bobine'], ['stampe', 'Stampe'], ['vendite', 'Vendite'], ['movimenti', 'Spese e ricavi'],
+     ['chiosco', 'Ordini fatti']].map(([k, et]) =>
+      '<button type="button" class="bottone piccolo" data-gcsv="' + k + '">' + et + '</button>').join('') +
+    '</div></div>';
+}
+
+/* ------------------------------------------------------ importare, copie */
+
+function chiediFile(accetta) {
+  return new Promise((fatto) => {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = accetta;
+    inp.addEventListener('change', () => {
+      const f = inp.files[0];
+      if (!f) return fatto(null);
+      const fr = new FileReader();
+      fr.onload = () => fatto({ nome: f.name, testo: String(fr.result) });
+      fr.readAsText(f);
+    });
+    inp.click();
+  });
+}
+
+async function scegliVecchio() {
+  const origine = ($('#gOrigine').value || '').trim();
+  if (!origine) return alert('Scrivi prima il nome del dispositivo da cui viene il file (per esempio «Mac»).');
+  if (/[:]/.test(origine)) return alert('Il nome non può contenere i due punti.');
+  const f = await chiediFile('.json,application/json');
+  if (!f) return;
+  const l = window.Vecchio.leggi(f.testo);
+  if (l.errore) return alert(l.errore);
+  anteprimaVecchio = { origine, file: f.nome, trad: await window.Vecchio.traduci(l.dati, origine) };
+  disegna();
+}
+
+async function confermaVecchio() {
+  const a = anteprimaVecchio;
+  if (!a) return;
+  const p = $('#gPassaggio') && $('#gPassaggio').value;
+  anteprimaVecchio = null;
+  // prima quelle a cui le altre si appoggiano: una vendita punta a una stampa, un movimento a una vendita
+  await eFatto((async () => {
+    await versa('bobine', a.trad.bobine);
+    await versa('stampe', a.trad.stampe);
+    await versa('vendite', a.trad.vendite);
+    await versa('movimenti', a.trad.movimenti);
+    if (p) await salvaImpostazione('passaggio', { data: p });
+  })(), 'Importato da «' + a.origine + '».');
+}
+
+const FORMATO = 'mov3do/1';
+
+async function esportaTutto() {
+  try {
+    const [ordini, catalogo, postazioni] = await Promise.all([
+      tutte('ordini', 'select=*&order=quando'),
+      S.rest('GET', '/rest/v1/catalogo?select=*'),
+      S.rest('GET', '/rest/v1/postazioni?select=*'),
+    ]);
+    await carica();
+    const copia = {
+      formato: FORMATO, esportato: new Date().toISOString(),
+      ordini, catalogo, postazioni,
+      bobine: await tutte('bobine', 'select=*'), stampe: await tutte('stampe', 'select=*'),
+      vendite: await tutte('vendite', 'select=*'), movimenti: await tutte('movimenti', 'select=*'),
+      impostazioni: dati.impostazioni,
+    };
+    window.Operatore.consegna(new Blob([JSON.stringify(copia, null, 1)], { type: 'application/json' }),
+      'mov3do_copia_' + oggi() + '.json');
+  } catch (e) {
+    alert(e && e.rete ? 'Il server non risponde: la copia non si può fare.' : 'Copia non riuscita: ' + (e.message || e));
+  }
+}
+
+/* Rimettere una copia aggiunge e aggiorna, non toglie: una copia vecchia
+   non deve cancellare quello che si e' fatto dopo. Il catalogo si rimette
+   solo se sul server non ce n'e' uno, per lo stesso motivo. I campi che
+   mette il database (le ore) si lasciano a lui. */
+async function importaCopia() {
+  const f = await chiediFile('.json,application/json');
+  if (!f) return;
+  let c;
+  try { c = JSON.parse(f.testo); } catch (e) { return alert('Il file non è leggibile.'); }
+  if (!c || c.formato !== FORMATO) return alert('Questa non è una copia di MOV3DO (' + FORMATO + ').');
+  const n = (k) => (c[k] || []).length;
+  if (!confirm('Rimettere la copia del ' + giorno(String(c.esportato || '').slice(0, 10)) + '? ' + n('ordini') +
+               ' ordini, ' + n('bobine') + ' bobine, ' + n('stampe') + ' stampe, ' + n('vendite') + ' vendite, ' +
+               n('movimenti') + ' movimenti. Si aggiunge a quello che c’è, senza togliere niente.')) return;
+  const pulisci = (righe) => (righe || []).map(r => {
+    const x = Object.assign({}, r);
+    delete x.aggiornato_il; delete x.aggiornato_da; delete x.creata_il;
+    return x;
+  });
+  await eFatto((async () => {
+    await versa('postazioni', pulisci(c.postazioni), 'lettera');
+    // fatto_il resta: un ordine rimesso che non c'era prende la sua data vera
+    await versa('ordini', pulisci(c.ordini), 'numero');
+    const ce = await S.rest('GET', '/rest/v1/catalogo?select=id');
+    if (!ce.length && c.catalogo && c.catalogo[0])
+      await S.rest('POST', '/rest/v1/catalogo', { id: 1, dati: c.catalogo[0].dati, versione: 1 },
+                   { Prefer: 'return=minimal' });
+    await versa('bobine', pulisci(c.bobine));
+    await versa('stampe', pulisci(c.stampe));
+    await versa('vendite', pulisci(c.vendite));
+    await versa('movimenti', pulisci(c.movimenti));
+    await versa('impostazioni', pulisci(c.impostazioni), 'chiave');
+  })(), 'Copia rimessa.');
+}
+
+function foglio(quale) {
+  const Z = window.Zip;
+  const righe = [];
+  if (quale === 'bobine') {
+    const cons = consumi();
+    righe.push(['Materiale', 'Colore', 'Marca', 'Peso g', 'Residuo g', 'Residuo %', 'Costo €', '€/kg']);
+    for (const b of dati.bobine) {
+      const st = statoBobina(b, cons.get(b.id));
+      righe.push([b.materiale, b.colore, b.marca, b.peso_g, Math.round(st.residuo), st.pct.toFixed(0),
+                  Number(b.costo).toFixed(2), b.peso_g ? (b.costo / b.peso_g * 1000).toFixed(2) : '']);
+    }
+  } else if (quale === 'stampe') {
+    righe.push(['Data', 'Modello', 'Ordine', 'Filamenti', 'Grammi', 'Tempo min', 'Pezzi', 'Materiale €',
+                'Energia €', 'Totale €', 'Esito', 'Note']);
+    for (const s of dati.stampe) righe.push([s.data, s.nome, s.ordine || '',
+      (s.filamenti || []).map(f => (f.etichetta || '') + ' ' + f.grammi + 'g').join(', '), grammiStampa(s),
+      s.tempo_min, s.quantita, costoMateriale(s).toFixed(2), Number(s.costo_energia).toFixed(2),
+      costoStampa(s).toFixed(2), s.esito === 'ok' ? 'riuscita' : 'fallita', s.note]);
+  } else if (quale === 'vendite') {
+    righe.push(['Data', 'Cliente', 'Canale', 'Stampa', 'Prezzo €', 'Costo €', 'Margine €', 'Note']);
+    for (const v of dati.vendite) {
+      const s = v.stampa && dati.stampe.find(x => x.id === v.stampa);
+      righe.push([v.data, v.cliente, v.canale, s ? s.nome : '', Number(v.prezzo).toFixed(2),
+                  s ? costoStampa(s).toFixed(2) : '', s ? (v.prezzo - costoStampa(s)).toFixed(2) : '', v.note]);
+    }
+  } else if (quale === 'movimenti') {
+    righe.push(['Data', 'Tipo', 'Categoria', 'Descrizione', 'Importo €', 'Copia di una vendita']);
+    for (const m of dati.movimenti) righe.push([m.data, m.tipo, m.categoria, m.descrizione,
+      Number(m.importo).toFixed(2), m.vendita ? 'sì' : '']);
+  } else {
+    righe.push(['Fatto il', 'Ordine', 'Cliente', 'Tipo', 'Prezzo €']);
+    for (const o of dati.ordini) righe.push([String(o.fatto_il || '').slice(0, 10), o.numero, o.cliente, o.tipo,
+      o.totale == null ? '' : Number(o.totale).toFixed(2)]);
+  }
+  /* I numeri con la virgola, che e' quello che il foglio di calcolo in
+     italiano riconosce come numero; con il punto li terrebbe come testo.
+     Il BOM in testa gli fa leggere giusti gli accenti. */
+  const cella = (x) => {
+    const s = String(x == null ? '' : x);
+    return /^-?\d+\.\d+$/.test(s) ? s.replace('.', ',') : s;
+  };
+  const testo = '﻿' + righe.map(r => Z.rigaCSV(r.map(cella))).join('\r\n');
+  window.Operatore.consegna(new Blob([testo], { type: 'text/csv' }), 'mov3do_' + quale + '_' + oggi() + '.csv');
+}
+
+/* ------------------------------------------------------------ salvare */
+
+const valori = (form) => Object.fromEntries(new FormData(form).entries());
+const num = (v) => v === '' || v == null ? 0 : Number(v);
+
+function salva(form) {
+  const t = form.dataset.gsalva;
+  const v = valori(form);
+  const id = modifica && modifica.id;
+  if (t === 'bobine') {
+    const riga = { materiale: v.materiale, colore: v.colore.trim(), marca: v.marca.trim(), tinta: v.tinta,
+                   peso_g: num(v.peso_g), costo: num(v.costo) };
+    if (id) riga.id = id;
+    else riga.residuo_base_g = num(v.residuo);
+    return eFatto(scrivi('bobine', riga), 'Bobina salvata.');
+  }
+  if (t === 'pesa') {
+    const b = dati.bobine.find(x => x.id === form.dataset.id);
+    const base = num(v.pesati) + (consumi().get(b.id) || 0);
+    return eFatto(scrivi('bobine', { id: b.id, residuo_base_g: base }), 'Residuo aggiornato.');
+  }
+  if (t === 'stampe') {
+    const qta = Math.max(1, Math.round(num(v.quantita)));
+    const filamenti = [];
+    $$('.rigaFil', form).forEach((r, i) => {
+      const bob = $('select', r).value, g = Number($('input', r).value);
+      if (!bob && !g) return;
+      const b = dati.bobine.find(x => x.id === bob);
+      filamenti.push({ bobina: b ? b.id : null, etichetta: b ? [b.materiale, b.colore].join(' ') : '',
+                       grammi: g || 0, costo: b && b.peso_g > 0 ? +(b.costo / b.peso_g * (g || 0) * qta).toFixed(4) : 0 });
+    });
+    const riga = { nome: v.nome.trim(), data: v.data, tempo_min: num(v.tempo_min), quantita: qta, esito: v.esito,
+                   ordine: v.ordine.trim() || null, note: v.note.trim(), filamenti,
+                   costo_energia: +costoEnergia(num(v.tempo_min)).toFixed(4) };
+    if (id) riga.id = id;
+    return eFatto(scrivi('stampe', riga), 'Stampa salvata.');
+  }
+  if (t === 'vendite') {
+    const riga = { data: v.data, cliente: v.cliente.trim(), prezzo: num(v.prezzo), canale: v.canale,
+                   stampa: v.stampa || null, note: v.note.trim() };
+    if (id) riga.id = id;
+    return eFatto(scrivi('vendite', riga), 'Vendita salvata.');
+  }
+  if (t === 'movimenti') {
+    const riga = { data: v.data, tipo: v.tipo, categoria: v.categoria, descrizione: v.descrizione.trim(),
+                   importo: Math.abs(num(v.importo)) };
+    if (id) riga.id = id;
+    return eFatto(scrivi('movimenti', riga), 'Movimento salvato.');
+  }
+  if (t === 'impostazioni') {
+    return eFatto((async () => {
+      await salvaImpostazione('energia', { potenza_w: num(v.potenza_w), tariffa_kwh: num(v.tariffa_kwh) });
+      await salvaImpostazione('soglie', { basso: num(v.basso), esaurito: num(v.esaurito) });
+      await salvaImpostazione('passaggio', { data: v.passaggio || null });
+    })(), 'Regole salvate.');
+  }
+}
+
+/* --------------------------------------------------------------- eventi */
+
+function collega() {
+  const g = $('#gest');
+  g.addEventListener('click', (ev) => {
+    const t = ev.target;
+    const sch = t.closest('[data-gscheda]');
+    if (sch) { scheda = sch.dataset.gscheda; modifica = null; anteprimaVecchio = null; return disegna(); }
+    if (t.closest('[data-gricarica]')) { dati = null; return apri(); }
+    const per = t.closest('[data-gperiodo]');
+    if (per) { periodo = per.dataset.gperiodo; return disegna(); }
+    const nu = t.closest('[data-gnuovo]');
+    if (nu) { modifica = { tabella: nu.dataset.gnuovo, id: null }; disegna(); return scorriSu(); }
+    const mo = t.closest('[data-gmodifica]');
+    if (mo) { modifica = { tabella: mo.dataset.gmodifica, id: mo.dataset.id }; disegna(); return scorriSu(); }
+    const pe = t.closest('[data-gpesa]');
+    if (pe) { modifica = { tabella: 'pesa', id: pe.dataset.gpesa }; disegna(); return scorriSu(); }
+    if (t.closest('[data-gannulla]')) { modifica = null; return disegna(); }
+    const to = t.closest('[data-gtogli]');
+    if (to) {
+      if (!confirm('Togliere questa riga? Nei conti non conterà più.')) return;
+      return eFatto(togli(to.dataset.gtogli, to.dataset.id), 'Tolta.');
+    }
+    if (t.closest('[data-grigafil]')) {
+      const dove = $('.righeFil', g);
+      dove.insertAdjacentHTML('beforeend', rigaFilamento({}, dove.children.length));
+      return;
+    }
+    if (t.closest('[data-gtogliriga]')) { t.closest('.rigaFil').remove(); return; }
+    const vc = t.closest('[data-gvecchio]');
+    if (vc) {
+      if (vc.dataset.gvecchio === 'scegli') return scegliVecchio();
+      if (vc.dataset.gvecchio === 'conferma') return confermaVecchio();
+      anteprimaVecchio = null; return disegna();
+    }
+    const cp = t.closest('[data-gcopia]');
+    if (cp) return cp.dataset.gcopia === 'esporta' ? esportaTutto() : importaCopia();
+    const cs = t.closest('[data-gcsv]');
+    if (cs) return foglio(cs.dataset.gcsv);
+  });
+  g.addEventListener('submit', (ev) => {
+    const f = ev.target.closest('form[data-gsalva]');
+    if (!f) return;
+    ev.preventDefault();
+    salva(f);
+  });
+}
+
+function scorriSu() {
+  const s = $('section[data-vista="gestionale"]');
+  if (s) s.scrollTop = 0;
+}
+
+let collegato = false;
+function mostra() {
+  if (!collegato) { collega(); collegato = true; }
+  return apri();
+}
+
+/* Per le prove: i conti come li vede il cruscotto, senza passare dal
+   disegno. */
+const __prova = {
+  get dati() { return dati; }, entrate, uscite, consumi, statoBobina, costoStampa, costoEnergia,
+  carica, confermaVecchio: () => confermaVecchio(), set anteprima(a) { anteprimaVecchio = a; },
+};
+
+return { mostra, __prova };
+})();
+
+/* =====================================================================
    MOV3DO — faccia admin: accesso e viste
    La coda la disegna chiosco.js, lo stesso codice della parte operatore
    del chiosco (window.Operatore), e la sincronizzazione e' quella di
    sincro.js, qui senza postazione. Questo file fa solo tre cose: non
    lascia vedere niente senza un utente admin, passa fra Coda, Studio e
-   Gestionale, e carica lo studio la prima volta che serve.
+   Gestionale (gestionale.js), e carica lo studio la prima volta che serve.
    ===================================================================== */
 window.Admin = (function () {
 'use strict';
@@ -16010,6 +17739,7 @@ function vai(vista) {
   $$('#adVista > section').forEach(s => { s.hidden = s.dataset.vista !== vista; });
   if (vista === 'studio') apriStudio();
   if (vista === 'coda') window.Operatore.ridisegna();
+  if (vista === 'gestionale') window.Gestionale.mostra();
   try { localStorage.setItem(K_VISTA, vista); } catch (e) {}
 }
 
