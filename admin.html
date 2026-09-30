@@ -179,6 +179,25 @@ body[data-tipo="maglietta"] #scena::before, body[data-tipo="barattolo"] #scena::
 #scena svg { max-width: 92%; max-height: 92%; display: block; }
 #vuoto { color: var(--carta-tenue); font-size: 15px; text-align: center; padding: 0 24px; }
 
+/* Il portachiavi in rilievo (src/vista3d.js): la tela copre il foglio, che
+   resta sotto coi suoi puntini, e i tocchi li prende lei. Il bottone sta
+   nell'angolo libero, di fronte al payoff: nero pieno come l'interfaccia,
+   e acceso in neon, con il testo nero come il bottone forte. */
+.vista3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.vista3d[hidden] { display: none; }   /* senza, il display qui sopra vincerebbe */
+#bottoneTre {
+  position: absolute; top: 8px; right: 10px; z-index: 1;
+  font: 700 13px/1 var(--display); letter-spacing: .06em;
+  padding: 9px 14px; min-width: 48px; border-radius: 999px; cursor: pointer;
+  background: var(--nero); color: var(--avorio); border: 1px solid var(--nero);
+}
+#bottoneTre[aria-pressed="true"] { background: var(--neon); color: var(--nero); }
+#bottoneTre[hidden] { display: none; }
+#suggerimentoTre {
+  position: absolute; left: 0; right: 0; bottom: 8px; text-align: center;
+  font-size: 12px; color: var(--carta-tenue); pointer-events: none;
+}
+
 /* --------------------------------- passi -------------------------------- */
 
 #passi {
@@ -9786,20 +9805,24 @@ function pezziDi(g, opz) {
   /* La sede non puo' essere piu' profonda della scritta che ci va dentro
      (starebbe sotto il piano) ne' della base: pari alla base e' una finestra. */
   const sede = g.dBase && opz.sede > 0 && quali.some(Boolean) ? Math.min(opz.sede, hP, hB) : 0;
-  if (g.dBase) pezzi.push({ nome: sede ? 'base con sede' : 'base', colore: opz.coloreBase,
+  if (g.dBase) pezzi.push({ nome: sede ? 'base con sede' : 'base', colore: opz.coloreBase, parte: -1,
                             d: g.dBase, z0: 0, z1: hB,
                             sede, dSede: sede ? sedeDi(g, opz.gioco, quali) : '' });
   g.parti.forEach((p, i) => {
     /* Una parte incassata non sta piu' sopra la base ma sul piatto, di
        fianco: e' un pezzo che si stampa per conto suo. Le altre restano
-       appoggiate sopra, come sempre. */
+       appoggiate sopra, come sempre.
+       Con `montato` (l'anteprima del chiosco, mai il file) la parte
+       incassata sta invece gia' dentro la sede, come il cliente avra' il
+       pezzo in mano dopo la colla: i pezzi sul piatto non gli direbbero
+       niente. */
     const separato = !!sede && quali[i];
-    const appoggio = g.dBase && !separato ? hB : 0;
+    const appoggio = !g.dBase ? 0 : !separato ? hB : opz.montato ? hB - sede : 0;
     pezzi.push({
       nome: nomi[i] || (g.parti.length > 1 ? 'colore' + (i + 1) : 'scritta'),
       colore: colori[i] || p.colore,
-      d: p.d, z0: appoggio, z1: appoggio + hP,
-      scosta: separato ? g.W + DISTANZA_PEZZI : 0, separato
+      d: p.d, z0: appoggio, z1: appoggio + hP, parte: i,
+      scosta: separato && !opz.montato ? g.W + DISTANZA_PEZZI : 0, separato
     });
   });
   return pezzi;
@@ -9913,8 +9936,11 @@ function pezzi3D(g, opz) {
   const o = opz || {};
   return pezziDi(g, o).map(p => {
     const an = (d) => raddrizza(anelli(d), g.H).map(a => a.map(q => [q[0] + (p.scosta || 0), q[1]]));
+    /* `parte` dice di chi e' il pezzo (-1 la base, poi l'indice in g.parti):
+       i pezzi senza triangoli spariscono, e chi li ricolora non potrebbe
+       contarli per posizione, ne' per colore se due sono uguali. */
     return {
-      nome: p.nome, colore: p.colore, separato: p.separato,
+      nome: p.nome, colore: p.colore, separato: p.separato, parte: p.parte,
       maglia: p.sede ? magliaSede(an(p.d), an(p.dSede), p.z1, p.sede)
                      : maglia(an(p.d), p.z0, p.z1)
     };
@@ -14038,7 +14064,86 @@ function disegna() {
                                : 'Scrivi un nome per vedere l’anteprima') + '</div>';
     return;
   }
+  if (tre.acceso && tre.vista) return scenaTre(scena);
   scena.innerHTML = svgAnteprima(ultimo.g, scelta);
+  if (tre.bottone) scena.appendChild(tre.bottone);
+}
+
+/* ------------------------------------------------ anteprima in rilievo */
+
+/* Il portachiavi in 3D, con lo stesso visore dello studio (src/vista3d.js):
+   il bottone sta nell'angolo del foglio, e il cliente lo gira col dito. Le
+   magliette e i barattoli non ce l'hanno, sono stampe piatte.
+   L'admin non carica il visore (Vista3D manca), e allora il bottone non
+   c'e'. */
+const tre = { acceso: false, vista: null, bottone: null, chiave: '', parti: [], attesa: null };
+
+function preparaTre() {
+  if (!window.Vista3D || tre.bottone) return;
+  const b = document.createElement('button');
+  b.type = 'button'; b.id = 'bottoneTre'; b.textContent = '3D';
+  b.setAttribute('aria-pressed', 'false');
+  b.title = 'Guardalo in 3D';
+  b.addEventListener('click', () => accendiTre(!tre.acceso));
+  tre.bottone = b;
+  const s = document.createElement('div');
+  s.id = 'suggerimentoTre';
+  s.textContent = 'Giralo col dito · due dita per avvicinarlo';
+  tre.suggerimento = s;
+}
+
+function accendiTre(acceso) {
+  if (acceso && !tre.vista) {
+    /* Piu' di fronte che nello studio: il foglio e' basso, e di sbieco il
+       nome si mette in diagonale e viene piccolo. Un filo di lato resta,
+       senno' il rilievo non si vede finche' non lo si gira. */
+    try { tre.vista = window.Vista3D.crea($('#scena'), { partenza: { azimut: -0.12, alzo: 1.05 } }); }
+    catch (e) { tre.vista = null; }
+    if (!tre.vista) { tre.bottone.hidden = true; return; }   // niente WebGL: resta il piatto
+  }
+  tre.acceso = acceso;
+  tre.bottone.setAttribute('aria-pressed', String(acceso));
+  disegna();
+}
+
+/* Il foglio col rilievo: la tela e' sempre la stessa (spostarla nel DOM non
+   le toglie il contesto WebGL), il disegno piatto non c'e'. */
+function scenaTre(scena) {
+  scena.innerHTML = '';
+  scena.append(tre.vista.tela, tre.bottone, tre.suggerimento);
+  tre.vista.tela.hidden = false;
+  programmaTre();
+}
+
+/* La maglia si fa solo sul calcolo vero, non sulle bozze mentre si scrive:
+   quelle arrivano ogni 180 ms e il calcolo vero le segue di mezzo secondo,
+   quindi rifarla anche per loro vorrebbe dire due maglie per pausa, e sul
+   tablet la seconda arriva mentre si tocca gia' altro. Intanto resta quella
+   di prima, ricolorata. */
+function programmaTre() {
+  clearTimeout(tre.attesa);
+  tre.attesa = setTimeout(costruisciTre, 60);
+}
+
+function costruisciTre() {
+  if (!tre.acceso || !tre.vista || !ultimo || !ultimo.g) return;
+  const g = ultimo.g, R = cat.regole;
+  const colori = [scelta.coloreBase].concat(g.parti.map(() => scelta.coloreTesto));
+  /* Le altezze e la sede sono quelle che il file avra' (le regole del
+     catalogo, come in componiCfg), ma il pezzo si mostra montato: con la
+     sede la scritta sta gia' nel suo incavo, non di fianco sul piatto. */
+  const opz = { altezzaBase: R.spesBase, altezzaParte: R.spesParte, sede: R.sede, gioco: R.gioco,
+                montato: true, coloreBase: colori[0], coloriParti: colori.slice(1) };
+  const chiave = [opz.altezzaBase, opz.altezzaParte, opz.sede, opz.gioco,
+                  g.dBase, g.parti.map(p => p.d).join('|')].join('#');
+  if (chiave === tre.chiave || ultimo.provvisorio) {
+    if (tre.chiave) tre.vista.colora(tre.parti.map(i => colori[i + 1]));
+    return;
+  }
+  const pezzi = SO.pezzi3D(g, opz);
+  tre.vista.carica(pezzi);
+  tre.parti = pezzi.map(p => p.parte);
+  tre.chiave = chiave;
 }
 
 /* ------------------------------------------------------------ i passaggi */
@@ -14535,6 +14640,8 @@ function vaiA(n) {
 function scegliTipo(t) {
   tipo = t;
   passo = 0;
+  // ogni cliente, e ogni mestiere, riparte dal disegno piatto
+  if (tre.bottone) { tre.acceso = false; tre.bottone.setAttribute('aria-pressed', 'false'); }
   document.body.dataset.tipo = t || '';
   $('#titolo').textContent = t === 'maglietta' ? 'Personalizza la tua maglietta'
                            : t === 'barattolo' ? 'Personalizza il tuo barattolo'
@@ -15720,8 +15827,10 @@ function avviaOrologio() {
    cliente, e i suoi elementi nella pagina non ci sono nemmeno. */
 function collegaCliente() {
   // ogni tocco rimanda indietro il ritorno automatico
+  /* In cattura: il 3D si tiene per se' i tocchi (non salgono oltre la sua
+     tela), e chi gira il portachiavi col dito sta usando il chiosco. */
   ['pointerdown', 'keydown'].forEach(e =>
-    document.addEventListener(e, avviaOrologio, { passive: true }));
+    document.addEventListener(e, avviaOrologio, { passive: true, capture: true }));
 
   $('#avanti').addEventListener('click', () => {
     const id = passi()[passo].id;
@@ -16070,6 +16179,7 @@ function avvia() {
   if (ADMIN) return;
   scelta = sceltaIniziale();
   collegaCliente();
+  preparaTre();
   scegliTipo(null);
   avviaOrologio();
   setTimeout(() => scaldaFont(), 200);
@@ -16093,6 +16203,7 @@ window.__pk3dChiosco = {
   get scelta() { return scelta; },
   get ultimo() { return ultimo; },
   get catalogo() { return cat; },
+  get tre() { return tre; },
   adatta, componiCfg, vaiA, conferma, ricomincia, Dati: D,
   misureBuone, sistemaMisura, caratteriBuoni, sistemaCarattere,
   get bloccato() { return { nessunaMisura, nessunCarattere }; },
