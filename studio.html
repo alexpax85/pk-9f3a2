@@ -211,6 +211,15 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
 .barrazoom button{background:none;border:none;color:#9A9A9A;cursor:pointer;
   font:600 12px/1 var(--corpo);padding:7px 10px;border-radius:999px;min-width:32px;transition:background .15s,color .15s}
 .barrazoom button:hover{background:#1E1E1E;color:var(--avorio)}
+#tre{font-family:var(--display)}
+#tre[aria-pressed=true],#tre[aria-pressed=true]:hover{background:var(--neon);color:#0A0A0A}
+.anteprima3d [data-zoom=vero]{display:none}
+
+/* L'anteprima in rilievo copre la tela e si prende lei mouse e dita. */
+.vista3d{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+.vista3d:active{cursor:grabbing}
+/* senza, il display:block qui sopra vincerebbe sull'attributo hidden */
+.vista3d[hidden]{display:none}
 #zoomVal{font-family:var(--display);font-variant-numeric:tabular-nums;min-width:56px !important;color:var(--neon) !important}
 
 #sfondi{display:flex;gap:5px;flex:1}
@@ -526,6 +535,8 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
       <div id="vuoto">…</div>
     </div>
     <div class="barrazoom">
+      <!-- piatto o in rilievo: il rilievo sono i triangoli del .3mf, girabili -->
+      <button type="button" id="tre" aria-pressed="false" title="anteprima in rilievo: trascina per girare, doppio clic per ripartire">3D</button>
       <button type="button" data-zoom="meno" title="rimpicciolisci">−</button>
       <button type="button" data-zoom="piu" title="ingrandisci">+</button>
       <button type="button" id="zoomVal" data-zoom="adatta" title="adatta alla finestra">100%</button>
@@ -9797,11 +9808,13 @@ const RELAZIONI =
   'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>' +
   '</Relationships>\n';
 
-/* Le tre voci che stanno dentro un 3MF. */
-function voci3MF(g, opz) {
+/* I pezzi gia' in maglia, ognuno col suo nome, colore e posto sul piatto.
+   E' quello che finisce nel 3MF, e lo stesso lo riceve l'anteprima 3D dello
+   studio: cosi' quello che si guarda e' il file che si scarica, non un suo
+   somigliante disegnato per conto suo. */
+function pezzi3D(g, opz) {
   const o = opz || {};
-  const tutti = pezziDi(g, o);
-  const pezzi = tutti.map(p => {
+  return pezziDi(g, o).map(p => {
     const an = (d) => raddrizza(anelli(d), g.H).map(a => a.map(q => [q[0] + (p.scosta || 0), q[1]]));
     return {
       nome: p.nome, colore: p.colore, separato: p.separato,
@@ -9809,6 +9822,12 @@ function voci3MF(g, opz) {
                      : maglia(an(p.d), p.z0, p.z1)
     };
   }).filter(p => p.maglia.triangoli.length);
+}
+
+/* Le tre voci che stanno dentro un 3MF. */
+function voci3MF(g, opz) {
+  const o = opz || {};
+  const pezzi = pezzi3D(g, o);
   if (!pezzi.length) return null;
   /* [Content_Types].xml deve stare per primo dentro l'archivio: e' la regola
      dei pacchetti OPC, su cui il 3MF e' costruito. */
@@ -9831,7 +9850,294 @@ function file3MF(g, opz) {
   return b ? new Blob([b], { type: 'model/3mf' }) : null;
 }
 
-return { file3MF, byte3MF, sedeDi, ALTEZZA_BASE, ALTEZZA_PARTE };
+return { file3MF, byte3MF, pezzi3D, sedeDi, ALTEZZA_BASE, ALTEZZA_PARTE };
+})();
+
+/* =====================================================================
+   Portachiavi 3D — l'anteprima in rilievo (solo studio)
+   Disegna in WebGL i pezzi che Solido.pezzi3D ha appena messo in maglia:
+   gli stessi triangoli che finiscono nel .3mf, non una ricostruzione a
+   parte. Si gira col trascinamento, si avvicina con la rotella o con due
+   dita, doppio clic per tornare alla vista di partenza.
+
+   Perche' WebGL scritto qui e non Three.js: per un pezzo piatto a due o tre
+   colori serve un prisma illuminato e una telecamera che gira, e Three.js
+   (circa 600-700 kB minificato, quasi un mega in base64) avrebbe pesato
+   quanto tutto lo studio. Questo file sono pochi kB.
+
+   WebGL 1 e non 2: c'e' su tutti gli iPad, e qui non serve niente di piu'.
+   Non usa DOM fuori dal suo contenitore e non sa niente dello studio.
+   ===================================================================== */
+window.Vista3D = (function () {
+'use strict';
+
+/* ---------------- matrici 4x4, colonne in fila come vuole WebGL ---------------- */
+
+function prospettiva(fov, aspetto, vicino, lontano) {
+  const f = 1 / Math.tan(fov / 2), d = 1 / (vicino - lontano);
+  return [f / aspetto, 0, 0, 0,  0, f, 0, 0,
+          0, 0, (lontano + vicino) * d, -1,  0, 0, 2 * lontano * vicino * d, 0];
+}
+
+function guarda(occhio, bersaglio, su) {
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const norm = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const z = norm(sub(occhio, bersaglio)), x = norm(cross(su, z)), y = cross(z, x);
+  return [x[0], y[0], z[0], 0,  x[1], y[1], z[1], 0,  x[2], y[2], z[2], 0,
+          -dot(x, occhio), -dot(y, occhio), -dot(z, occhio), 1];
+}
+
+/* ---------------- shader ---------------- */
+
+/* La luce sta ferma rispetto alla telecamera, in alto a sinistra: girando il
+   pezzo resta sempre illuminato dal lato da cui lo si guarda. Le facce di
+   sopra (base e scritta) sono parallele, quindi hanno la stessa luce: il
+   rilievo lo raccontano le pareti, che prendono ognuna la sua. */
+const VS = `
+attribute vec3 pos;
+attribute vec3 nor;
+uniform mat4 vista, proiez;
+uniform float cima;
+varying vec3 n;
+varying float sotto;
+void main() {
+  n = mat3(vista) * nor;
+  sotto = cima - pos.z;
+  gl_Position = proiez * vista * vec4(pos, 1.0);
+}`;
+
+/* Il fondo della sede e' parallelo alla faccia di sopra e prende la sua
+   stessa luce: senza altro, l'incavo si vedrebbe solo dalle pareti. Per
+   questo quello che sta sotto la cima del proprio pezzo si scurisce, fino a
+   un terzo a un millimetro di profondita' (scelto a occhio sulle foto della
+   sede: e' anteprima, non misura). Le facce di sopra di base e scritta sono
+   ognuna la cima del suo pezzo, quindi non cambiano.
+
+   Due facce illuminate tutte e due: la maglia e' orientata bene (lo
+   controlla tools/solidi.js), ma una parete vista da dentro, se capitasse,
+   deve restare leggibile e non nera. */
+const FS = `
+precision mediump float;
+uniform vec3 colore;
+varying vec3 n;
+varying float sotto;
+void main() {
+  vec3 nn = normalize(n);
+  if (!gl_FrontFacing) nn = -nn;
+  vec3 luce = normalize(vec3(-0.45, 0.65, 0.62));
+  float d = max(dot(nn, luce), 0.0);
+  float riempi = max(dot(nn, vec3(0.0, 0.0, 1.0)), 0.0);
+  float ombra = 1.0 - 0.35 * clamp(sotto, 0.0, 1.0);
+  gl_FragColor = vec4(colore * (0.30 + 0.55 * d + 0.20 * riempi) * ombra, 1.0);
+}`;
+
+function compila(gl, tipo, testo) {
+  const s = gl.createShader(tipo);
+  gl.shaderSource(s, testo); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+
+const rgb = (c) => {
+  let h = String(c || '#b4b4b4').trim();
+  if (/^#[0-9a-f]{3}$/i.test(h)) h = '#' + h[1] + h[1] + h[2] + h[2] + h[3] + h[3];
+  return [1, 3, 5].map(i => (parseInt(h.substr(i, 2), 16) || 0) / 255);
+};
+
+/* ---------------- la vista ---------------- */
+
+const FOV = 35 * Math.PI / 180;
+/* La vista di partenza: da davanti e un po' di lato, alta sul pezzo. Da
+   dritti sopra non si vedrebbe il rilievo, da troppo bassi la scritta. */
+const PARTENZA = { azimut: -0.35, alzo: 0.95 };
+
+function crea(contenitore) {
+  const tela = document.createElement('canvas');
+  tela.className = 'vista3d';
+  contenitore.appendChild(tela);
+  const gl = tela.getContext('webgl', { antialias: true, alpha: true, premultipliedAlpha: true });
+  if (!gl) { tela.remove(); return null; }
+
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compila(gl, gl.VERTEX_SHADER, VS));
+  gl.attachShader(prog, compila(gl, gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  const aPos = gl.getAttribLocation(prog, 'pos'), aNor = gl.getAttribLocation(prog, 'nor');
+  const uVista = gl.getUniformLocation(prog, 'vista'), uProiez = gl.getUniformLocation(prog, 'proiez');
+  const uColore = gl.getUniformLocation(prog, 'colore'), uCima = gl.getUniformLocation(prog, 'cima');
+
+  let pezzi = [];                         // { buffer, n, colore }
+  let centro = [0, 0, 0], raggio = 50;
+  const cam = { azimut: PARTENZA.azimut, alzo: PARTENZA.alzo, dist: 150, sposta: [0, 0, 0] };
+  let chiesto = false, inquadrato = false;
+
+  /* Un vertice per angolo di triangolo, niente indici: la normale e' quella
+     della faccia, e cosi' gli spigoli restano vivi come sono nel pezzo.
+     Costa memoria (24 byte a vertice, 72 a triangolo: sui 90 mila triangoli
+     del caso piu' lungo misurato fanno 6 MB) ma evita di dover chiedere
+     l'estensione degli indici a 32 bit, che oltre 65 mila vertici serve. */
+  function carica(lista) {
+    for (const p of pezzi) gl.deleteBuffer(p.buffer);
+    pezzi = [];
+    const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+    for (const p of lista) {
+      const V = p.maglia.vertici, T = p.maglia.triangoli;
+      let cima = -Infinity;
+      const dati = new Float32Array(T.length * 18);
+      let k = 0;
+      for (const t of T) {
+        const a = V[t[0]], b = V[t[1]], c = V[t[2]];
+        const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+        const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+        let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+        const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+        for (const q of [a, b, c]) {
+          dati[k++] = q[0]; dati[k++] = q[1]; dati[k++] = q[2];
+          dati[k++] = nx; dati[k++] = ny; dati[k++] = nz;
+        }
+      }
+      for (const q of V) if (q[2] > cima) cima = q[2];
+      for (const q of V) for (let i = 0; i < 3; i++) {
+        if (q[i] < min[i]) min[i] = q[i];
+        if (q[i] > max[i]) max[i] = q[i];
+      }
+      const buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, dati, gl.STATIC_DRAW);
+      pezzi.push({ buffer, n: T.length * 3, colore: rgb(p.colore), cima });
+    }
+    if (!pezzi.length) return ridisegna();
+    const primo = !inquadrato, vecchio = raggio;
+    centro = [0, 1, 2].map(i => (min[i] + max[i]) / 2);
+    raggio = Math.max(1, Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) / 2);
+    /* Ritoccando un cursore il pezzo cambia di poco, e la vista che ci si e'
+       girati resta dov'e'. Si riparte da capo solo se cambia davvero misura
+       (un logo nuovo, la sede che manda la scritta di fianco): un terzo in
+       piu' o in meno, a occhio, e' dove la vecchia inquadratura smette di
+       servire. */
+    if (primo || raggio > vecchio * 1.33 || raggio < vecchio * 0.75) adatta();
+    else ridisegna();
+  }
+
+  /* Solo i colori: rifare i buffer per un colore sarebbe rifare tutto. */
+  function colora(colori) {
+    pezzi.forEach((p, i) => { if (colori[i]) p.colore = rgb(colori[i]); });
+    ridisegna();
+  }
+
+  function adatta() {
+    if (!tela.clientWidth) return ridisegna();   // non ancora a vista: si inquadra dopo
+    inquadrato = true;
+    cam.azimut = PARTENZA.azimut; cam.alzo = PARTENZA.alzo;
+    cam.sposta = [0, 0, 0];
+    const aspetto = tela.clientWidth / Math.max(1, tela.clientHeight);
+    // la sfera che contiene il pezzo deve stare nel lato corto dell'inquadratura
+    const mezzo = aspetto < 1 ? Math.atan(Math.tan(FOV / 2) * aspetto) : FOV / 2;
+    cam.dist = raggio / Math.sin(mezzo) * 1.08;
+    ridisegna();
+  }
+
+  function zooma(fattore) {
+    cam.dist = Math.max(raggio * 0.15, Math.min(cam.dist / fattore, raggio * 30));
+    ridisegna();
+  }
+
+  function ridisegna() {
+    if (chiesto) return;
+    chiesto = true;
+    requestAnimationFrame(disegna);
+  }
+
+  function disegna() {
+    chiesto = false;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.round(tela.clientWidth * dpr), h = Math.round(tela.clientHeight * dpr);
+    if (!w || !h) return;
+    if (tela.width !== w || tela.height !== h) { tela.width = w; tela.height = h; }
+    gl.viewport(0, 0, w, h);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (!pezzi.length) return;
+    gl.enable(gl.DEPTH_TEST);
+    gl.useProgram(prog);
+
+    const bersaglio = [0, 1, 2].map(i => centro[i] + cam.sposta[i]);
+    const ca = Math.cos(cam.alzo);
+    const occhio = [bersaglio[0] + cam.dist * ca * Math.sin(cam.azimut),
+                    bersaglio[1] - cam.dist * ca * Math.cos(cam.azimut),
+                    bersaglio[2] + cam.dist * Math.sin(cam.alzo)];
+    gl.uniformMatrix4fv(uVista, false, guarda(occhio, bersaglio, [0, 0, 1]));
+    gl.uniformMatrix4fv(uProiez, false,
+      prospettiva(FOV, w / h, Math.max(0.1, cam.dist - raggio * 2), cam.dist + raggio * 2));
+
+    gl.enableVertexAttribArray(aPos); gl.enableVertexAttribArray(aNor);
+    for (const p of pezzi) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, p.buffer);
+      gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 24, 0);
+      gl.vertexAttribPointer(aNor, 3, gl.FLOAT, false, 24, 12);
+      gl.uniform3fv(uColore, p.colore);
+      gl.uniform1f(uCima, p.cima);
+      gl.drawArrays(gl.TRIANGLES, 0, p.n);
+    }
+  }
+
+  /* Spostare il bersaglio nel piano dello schermo: dx, dy in pixel. */
+  function trasla(dx, dy) {
+    const passo = 2 * cam.dist * Math.tan(FOV / 2) / Math.max(1, tela.clientHeight);
+    const sa = Math.sin(cam.azimut), ca = Math.cos(cam.azimut);
+    const sz = Math.sin(cam.alzo), cz = Math.cos(cam.alzo);
+    // destra dello schermo e alto dello schermo, nel mondo
+    const destra = [ca, sa, 0], alto = [-sz * sa, sz * ca, cz];
+    for (let i = 0; i < 3; i++) cam.sposta[i] += (-dx * destra[i] + dy * alto[i]) * passo;
+    ridisegna();
+  }
+
+  /* ---- mouse e dita ---- */
+  const dita = new Map();
+  let prima = null;             // distanza e centro delle due dita al passo prima
+  const ferma = (e) => { e.stopPropagation(); };
+
+  tela.addEventListener('pointerdown', (e) => {
+    ferma(e);
+    tela.setPointerCapture(e.pointerId);
+    dita.set(e.pointerId, { x: e.clientX, y: e.clientY, tasto: e.button, maiusc: e.shiftKey });
+    prima = null;
+  });
+  tela.addEventListener('pointermove', (e) => {
+    ferma(e);
+    const d = dita.get(e.pointerId);
+    if (!d) return;
+    const dx = e.clientX - d.x, dy = e.clientY - d.y;
+    d.x = e.clientX; d.y = e.clientY;
+    if (dita.size >= 2) {
+      const [a, b] = [...dita.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+      if (prima) { zooma(dist / prima.dist); trasla(cx - prima.cx, cy - prima.cy); }
+      prima = { dist, cx, cy };
+    } else if (d.tasto === 2 || d.maiusc) trasla(dx, dy);
+    else {
+      cam.azimut -= dx * 0.008;
+      cam.alzo = Math.max(-1.5, Math.min(1.5, cam.alzo + dy * 0.008));
+      ridisegna();
+    }
+  });
+  for (const t of ['pointerup', 'pointercancel'])
+    tela.addEventListener(t, (e) => { ferma(e); dita.delete(e.pointerId); prima = null; });
+  tela.addEventListener('wheel', (e) => {
+    ferma(e); e.preventDefault();
+    zooma(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0022)));
+  }, { passive: false });
+  tela.addEventListener('dblclick', (e) => { ferma(e); adatta(); });
+  tela.addEventListener('contextmenu', (e) => e.preventDefault());
+  new ResizeObserver(ridisegna).observe(tela);
+
+  return { tela, carica, colora, adatta, zooma, ridisegna };
+}
+
+return { crea };
 })();
 
 /* =====================================================================
@@ -10625,7 +10931,8 @@ const $ = (s) => document.querySelector(s);
 /* ============================ interfaccia ============================ */
 
 const stato = { g: null, cfg: null, logo: null, immagine: null, svgTracciato: null,
-                vista: { z: 1, x: 0, y: 0 }, adattato: false };
+                vista: { z: 1, x: 0, y: 0 }, adattato: false,
+                tre: false, vista3d: null, chiave3d: '' };
 
 /* 1 mm sullo schermo: un pixel CSS vale 1/96 di pollice, quindi a zoom 1 il
    pezzo si vede piu' o meno a grandezza naturale (dipende dal monitor). */
@@ -10713,7 +11020,7 @@ function disegna(g) {
 function applicaVista() {
   const v = stato.vista;
   $('#palco').style.transform = `translate(${v.x.toFixed(1)}px,${v.y.toFixed(1)}px) scale(${v.z})`;
-  $('#zoomVal').textContent = Math.round(v.z * 100) + '%';
+  $('#zoomVal').textContent = stato.tre ? 'adatta' : Math.round(v.z * 100) + '%';
 }
 
 /* Restituisce false se la finestra non e' ancora impaginata: in quel caso il
@@ -10773,14 +11080,74 @@ function collegaVista() {
     const b = e.target.closest('button');
     if (!b) return;
     const a = b.dataset.zoom;
+    if (stato.tre && stato.vista3d) {
+      if (a === 'adatta') stato.vista3d.adatta();
+      else if (a === 'piu' || a === 'meno') stato.vista3d.zooma(a === 'piu' ? 1.25 : 1 / 1.25);
+      return;
+    }
     if (a === 'adatta') adattaVista();
     else if (a === 'vero') { stato.vista = { z: 1, x: 0, y: 0 }; applicaVista(); }
     else zoomaVerso(a === 'piu' ? 1.25 : 1 / 1.25, 0, 0);
   });
+  $('#tre').addEventListener('click', () => accendi3D(!stato.tre));
   addEventListener('resize', () => { if (stato.g) applicaVista(); });
   new ResizeObserver(() => {
     if (!stato.adattato && stato.g) stato.adattato = adattaVista();
   }).observe(tela);
+}
+
+/* ---- anteprima in rilievo ---- */
+
+/* Il rilievo si costruisce solo a vista accesa, e un attimo dopo l'ultimo
+   tocco: la maglia costa da 40 ms («Alessio», 27.584 triangoli) a 345 ms
+   (Lui Parrucchieri tracciato, 234.048), piu' 30-90 ms per caricarla nella
+   scheda grafica (Chrome sul Mac, 30 settembre 2026), e rifarla a ogni
+   scatto di un cursore bloccherebbe il pannello. Il piatto invece resta
+   com'e', immediato, e sotto il rilievo continua ad aggiornarsi. */
+let timer3D = null;
+
+function accendi3D(acceso) {
+  if (acceso && !stato.vista3d) {
+    try { stato.vista3d = window.Vista3D.crea($('#tela')); } catch (e) { stato.vista3d = null; }
+    if (!stato.vista3d) {
+      $('#info').insertAdjacentHTML('afterbegin',
+        messaggio('errore', 'Questo browser non disegna in 3D (WebGL spento o assente).'));
+      return;
+    }
+  }
+  stato.tre = acceso;
+  $('#tre').setAttribute('aria-pressed', String(acceso));
+  $('#anteprima').classList.toggle('anteprima3d', acceso);
+  $('#palco').hidden = acceso;
+  if (stato.vista3d) stato.vista3d.tela.hidden = !acceso;
+  applicaVista();
+  if (acceso) programma3D(0);
+}
+
+function programma3D(attesa) {
+  clearTimeout(timer3D);
+  timer3D = setTimeout(costruisci3D, attesa == null ? 180 : attesa);
+}
+
+function costruisci3D() {
+  const V = stato.vista3d, g = stato.g, cfg = stato.cfg;
+  if (!stato.tre || !V) return;
+  if (!g) { V.carica([]); stato.chiave3d = ''; return; }
+  /* Gli stessi pezzi del .3mf, con i colori dell'anteprima piatta: quelli
+     che coloreParte schiarisce quando si confonderebbero con la base. */
+  const opz = opzioniSolido(g, cfg);
+  opz.coloriParti = g.parti.map(p => coloreParte(p));
+  const colori = [opz.coloreBase].concat(opz.coloriParti);
+  /* Cambiare un colore non cambia la maglia: si ricolora e basta. */
+  const chiave = [opz.altezzaBase, opz.altezzaParte, opz.sede, opz.gioco, opz.incassa.join(),
+                  g.dBase, g.parti.map(p => p.d).join('|')].join('#');
+  if (chiave === stato.chiave3d) { V.colora(stato.ordine3d.map(i => colori[i])); return; }
+  const pezzi = SO.pezzi3D(g, opz);
+  V.carica(pezzi);
+  /* pezzi3D scarta i pezzi senza triangoli: per ricolorare serve sapere di
+     quale colore era ognuno di quelli rimasti. */
+  stato.ordine3d = pezzi.map(p => colori.indexOf(p.colore));
+  stato.chiave3d = chiave;
 }
 
 /* ---- sfondo dell'anteprima ---- */
@@ -10823,10 +11190,12 @@ function aggiorna() {
     $('#vuoto').textContent = g.errore;
     $('#info').innerHTML = messaggio('errore', g.errore);
     $('#scaricamenti').innerHTML = '';
+    if (stato.tre) programma3D(0);
     return;
   }
   stato.g = g;
   disegna(g);
+  if (stato.tre) programma3D();
   costruisciScaricamenti(g);
   scriviInfo(g, cfg);
 

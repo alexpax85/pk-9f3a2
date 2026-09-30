@@ -9648,11 +9648,13 @@ const RELAZIONI =
   'Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>' +
   '</Relationships>\n';
 
-/* Le tre voci che stanno dentro un 3MF. */
-function voci3MF(g, opz) {
+/* I pezzi gia' in maglia, ognuno col suo nome, colore e posto sul piatto.
+   E' quello che finisce nel 3MF, e lo stesso lo riceve l'anteprima 3D dello
+   studio: cosi' quello che si guarda e' il file che si scarica, non un suo
+   somigliante disegnato per conto suo. */
+function pezzi3D(g, opz) {
   const o = opz || {};
-  const tutti = pezziDi(g, o);
-  const pezzi = tutti.map(p => {
+  return pezziDi(g, o).map(p => {
     const an = (d) => raddrizza(anelli(d), g.H).map(a => a.map(q => [q[0] + (p.scosta || 0), q[1]]));
     return {
       nome: p.nome, colore: p.colore, separato: p.separato,
@@ -9660,6 +9662,12 @@ function voci3MF(g, opz) {
                      : maglia(an(p.d), p.z0, p.z1)
     };
   }).filter(p => p.maglia.triangoli.length);
+}
+
+/* Le tre voci che stanno dentro un 3MF. */
+function voci3MF(g, opz) {
+  const o = opz || {};
+  const pezzi = pezzi3D(g, o);
   if (!pezzi.length) return null;
   /* [Content_Types].xml deve stare per primo dentro l'archivio: e' la regola
      dei pacchetti OPC, su cui il 3MF e' costruito. */
@@ -9682,7 +9690,7 @@ function file3MF(g, opz) {
   return b ? new Blob([b], { type: 'model/3mf' }) : null;
 }
 
-return { file3MF, byte3MF, sedeDi, ALTEZZA_BASE, ALTEZZA_PARTE };
+return { file3MF, byte3MF, pezzi3D, sedeDi, ALTEZZA_BASE, ALTEZZA_PARTE };
 })();
 
 /* =====================================================================
