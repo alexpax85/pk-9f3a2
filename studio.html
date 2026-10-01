@@ -289,6 +289,26 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
 #coloriLogo:not(.conSede) .incassa{display:none}
 .pastiglia{display:inline-block;width:13px;height:13px;border-radius:4px;flex:none;
   border:1px solid var(--filo);vertical-align:-2px;margin-right:6px}
+
+/* ------------------------------- bobine ------------------------------- */
+/* Gli slot della stampante: numero e colore della bobina caricata. Le
+   etichette stanno dentro una .riga, che a ogni label da' 122 px: qui no. */
+#bobine{display:flex;gap:6px;flex:1;flex-wrap:wrap}
+.riga #bobine .bobina{flex:none;display:flex;align-items:center;gap:4px;cursor:pointer}
+.bobina b{font:700 11px/1 var(--display);color:var(--tenue);width:9px;text-align:right}
+.bobina input[type=color]{width:30px}
+/* La scelta dello slot: quattro tasti col numero sopra il colore della
+   bobina. La scelta e' a filo d'accento, come gli sfondi. Il numero cambia
+   tinta sui colori chiari (data-chiaro), senno' sparisce. */
+.sceltaslot{display:flex;gap:5px}
+.sceltaslot button{width:28px;height:24px;border-radius:7px;border:1px solid var(--linea-2);cursor:pointer;
+  padding:0;font:700 11px/1 var(--display);color:#F5F5F2}
+.sceltaslot button[data-chiaro]{color:#0A0A0A}
+.sceltaslot button:hover{border-color:var(--testo)}
+.sceltaslot button[aria-checked=true]{border-color:var(--accento);box-shadow:0 0 0 2px rgba(var(--accento-rgb),.45)}
+.vocecolore .sceltaslot{margin-left:auto}
+.vocecolore .sceltaslot button{width:22px;height:20px;font-size:10px}
+.vocecolore .sceltaslot + .incassa{margin-left:8px}
 </style>
 </head>
 <body>
@@ -444,13 +464,37 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
       </div>
     </section>
 
+    <!-- Le bobine caricate nella stampante, slot per slot. Base e scritta
+         (e ogni colore di un logo) si scelgono per slot: nel .3mf ogni parte
+         esce gia' assegnata al suo, e lo slicer la colora con la bobina vera.
+         Gli slot scelti stanno in campi nascosti, cosi' li salva salva(). -->
+    <section>
+      <h2>Bobine</h2>
+      <div class="riga"><label>Colori caricati</label>
+        <div id="bobine">
+          <label class="bobina" title="colore della bobina nello slot 1"><b>1</b><input type="color" id="slot1" value="#f5f5f2"></label>
+          <label class="bobina" title="colore della bobina nello slot 2"><b>2</b><input type="color" id="slot2" value="#0a0a0a"></label>
+          <label class="bobina" title="colore della bobina nello slot 3"><b>3</b><input type="color" id="slot3" value="#ffd400"></label>
+          <label class="bobina" title="colore della bobina nello slot 4"><b>4</b><input type="color" id="slot4" value="#1f4fd1"></label>
+        </div>
+      </div>
+      <div class="riga"><label>Base</label>
+        <div class="sceltaslot" data-campo="slotBase" role="radiogroup" aria-label="slot della base"></div>
+        <input type="hidden" id="slotBase" value="1">
+      </div>
+      <div class="riga" data-solo="testo"><label>Scritta</label>
+        <div class="sceltaslot" data-campo="slotTesto" role="radiogroup" aria-label="slot della scritta"></div>
+        <input type="hidden" id="slotTesto" value="2">
+      </div>
+      <div class="nota" data-solo="logo">Lo slot di ogni colore del logo si sceglie qui sopra, accanto al colore.</div>
+      <div class="nota" style="margin-top:6px">
+        Nel .3mf ogni parte esce già sul suo slot: nello slicer prende il colore della bobina
+        caricata lì. Metti qui gli stessi colori delle bobine vere e l'anteprima sarà quella del pezzo stampato.
+      </div>
+    </section>
+
     <section>
       <h2>Anteprima e controlli</h2>
-      <div class="riga"><label>Colori</label>
-        <input type="color" id="colBase" value="#f5f5f2" title="colore della base">
-        <input type="color" id="colTesto" value="#0a0a0a" title="colore del dettaglio">
-        <span class="nota">solo per l'anteprima</span>
-      </div>
       <div class="riga"><label>Sfondo</label>
         <div id="sfondi"></div>
         <input type="color" id="colSfondo" value="#8a5a34" title="sfondo su misura">
@@ -508,9 +552,10 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
         <p class="nota" style="margin:8px 0 4px"><b>Col solido 3D (.3mf)</b></p>
         <ol class="istruzioni">
           <li>Aprilo nello slicer: arriva un oggetto solo, già alto e già montato,
-              con dentro <b>una parte per colore</b>.</li>
-          <li>Assegna un filamento a ogni parte e stampa. Non c'è niente da
-              estrudere, allineare o dividere.</li>
+              con dentro <b>una parte per colore</b>, ognuna già sullo slot scelto in «Bobine».</li>
+          <li>Se nello slicer le bobine sono quelle, il pezzo appare già nei colori giusti:
+              si stampa. Il progetto dello slicer deve avere almeno tanti filamenti quanto
+              lo slot più alto usato: una parte su uno slot che non c'è finisce sul filamento 1.</li>
         </ol>
         <p class="nota" style="margin:12px 0 4px"><b>Con gli SVG</b></p>
         <ol class="istruzioni">
@@ -9689,8 +9734,9 @@ function pezziDi(g, opz) {
   /* La sede non puo' essere piu' profonda della scritta che ci va dentro
      (starebbe sotto il piano) ne' della base: pari alla base e' una finestra. */
   const sede = g.dBase && opz.sede > 0 && quali.some(Boolean) ? Math.min(opz.sede, hP, hB) : 0;
+  const slot = opz.slotParti || [];
   if (g.dBase) pezzi.push({ nome: sede ? 'base con sede' : 'base', colore: opz.coloreBase, parte: -1,
-                            d: g.dBase, z0: 0, z1: hB,
+                            slot: opz.slotBase, d: g.dBase, z0: 0, z1: hB,
                             sede, dSede: sede ? sedeDi(g, opz.gioco, quali) : '' });
   g.parti.forEach((p, i) => {
     /* Una parte incassata non sta piu' sopra la base ma sul piatto, di
@@ -9704,7 +9750,7 @@ function pezziDi(g, opz) {
     const appoggio = !g.dBase ? 0 : !separato ? hB : opz.montato ? hB - sede : 0;
     pezzi.push({
       nome: nomi[i] || (g.parti.length > 1 ? 'colore' + (i + 1) : 'scritta'),
-      colore: colori[i] || p.colore,
+      colore: colori[i] || p.colore, slot: slot[i],
       d: p.d, z0: appoggio, z1: appoggio + hP, parte: i,
       scosta: separato && !opz.montato ? g.W + DISTANZA_PEZZI : 0, separato
     });
@@ -9774,27 +9820,69 @@ function modello(pezzi, nome) {
     xmlMaglia(p.maglia, r);
     r.push('</object>');
   });
+  /* Cosa entra nel piano: per ognuno l'id, il nome e, se e' un insieme di
+     componenti, le sue parti. Serve due volte, al modello e alle impostazioni
+     degli slot, che devono parlare degli stessi id. */
+  const id = (p) => pezzi.indexOf(p) + 2;
+  const insieme = (quali) => ({ id: pezzi.length + 2, nome, parti: quali });
   const fuori = pezzi.filter(p => p.separato), dentro = pezzi.filter(p => !p.separato);
+  let voci;
   if (fuori.length) {
-    const id = (p) => pezzi.indexOf(p) + 2;
-    const voci = fuori.map(id);
-    if (dentro.length > 1) {
-      const insieme = pezzi.length + 2;
-      r.push('<object id="' + insieme + '" type="model" name="' + esc(nome) + '"><components>');
-      dentro.forEach(p => r.push('<component objectid="' + id(p) + '"/>'));
-      r.push('</components></object>');
-      voci.unshift(insieme);
-    } else if (dentro.length) voci.unshift(id(dentro[0]));
-    r.push('</resources><build>');
-    voci.forEach(v => r.push('<item objectid="' + v + '"/>'));
-    r.push('</build></model>\n');
-    return r.join('');
+    voci = fuori.map(p => ({ id: id(p), nome: p.nome, slot: p.slot }));
+    if (dentro.length > 1) voci.unshift(insieme(dentro));
+    else if (dentro.length) voci.unshift({ id: id(dentro[0]), nome: dentro[0].nome, slot: dentro[0].slot });
+  } else voci = [insieme(pezzi)];
+  for (const v of voci) {
+    if (!v.parti) continue;
+    r.push('<object id="' + v.id + '" type="model" name="' + esc(v.nome) + '"><components>');
+    v.parti.forEach(p => r.push('<component objectid="' + id(p) + '"/>'));
+    r.push('</components></object>');
   }
-  const insieme = pezzi.length + 2;
-  r.push('<object id="' + insieme + '" type="model" name="' + esc(nome) + '"><components>');
-  pezzi.forEach((p, i) => r.push('<component objectid="' + (i + 2) + '"/>'));
-  r.push('</components></object></resources>');
-  r.push('<build><item objectid="' + insieme + '"/></build></model>\n');
+  r.push('</resources><build>');
+  voci.forEach(v => r.push('<item objectid="' + v.id + '"/>'));
+  r.push('</build></model>\n');
+  return { modello: r.join(''), slot: impostazioniSlot(voci, id) };
+}
+
+/* Lo slot dell'AMS di ogni parte, nel file che Bambu Studio, Orca ed Elegoo
+   Slicer leggono accanto al modello (Metadata/model_settings.config). Lo
+   standard del 3MF il materiale lo dice gia' (basematerials, qui sopra), ma
+   nessuno di quei tre lo usa per scegliere la bobina: aprendo il file tutte
+   le parti finivano sul filamento 1, bianche.
+
+   Provato dalla riga di comando di tutti e tre l'1 ottobre 2026: le parti
+   prendono il filamento indicato, anche 3 e 4, e il nome scritto qui («base»,
+   «scritta») invece di «Anna» e «Anna_2»; affettando col profilo della
+   Centauri Carbon 2 il G-code stampa la base col filamento della base e la
+   scritta col suo. Il file e' quello dell'insieme di componenti: l'oggetto e'
+   l'insieme, le parti sono gli oggetti che richiama.
+
+   I COLORI delle bobine invece non si scrivono. Starebbero in un altro file
+   (project_settings.config), ma scritto a meta' Bambu lo ignora e Orca ed
+   Elegoo si chiudono di colpo; e per farlo leggere il 3MF deve dichiararsi
+   progetto di Bambu Studio, e allora si chiude anche Bambu. Basta il numero:
+   lo slicer conosce le bobine caricate, e lo slot 2 e' gia' del colore che ha.
+
+   Senza slot (il chiosco, le prove delle impronte) il file non c'e' e il 3MF
+   resta quello di prima, byte per byte. */
+function impostazioniSlot(voci, id) {
+  const conSlot = (s) => s >= 1;
+  const tutti = [].concat(...voci.map(v => v.parti ? v.parti.map(p => p.slot) : [v.slot]));
+  if (!tutti.some(conSlot)) return null;
+  const meta = (k, v) => '<metadata key="' + k + '" value="' + esc(v) + '"/>';
+  const r = ['<?xml version="1.0" encoding="UTF-8"?>\n<config>\n'];
+  for (const v of voci) {
+    /* L'oggetto prende lo slot della prima parte: e' quello che lo slicer
+       mostra sulla riga dell'oggetto, e che una parte senza slot eredita. */
+    const primo = v.parti ? v.parti[0].slot : v.slot;
+    r.push(' <object id="' + v.id + '">' + meta('name', v.nome) +
+           (conSlot(primo) ? meta('extruder', primo) : '') + '\n');
+    for (const p of v.parti || [])
+      r.push('  <part id="' + id(p) + '" subtype="normal_part">' + meta('name', p.nome) +
+             (conSlot(p.slot) ? meta('extruder', p.slot) : '') + '</part>\n');
+    r.push(' </object>\n');
+  }
+  r.push('</config>\n');
   return r.join('');
 }
 
@@ -9824,7 +9912,7 @@ function pezzi3D(g, opz) {
        i pezzi senza triangoli spariscono, e chi li ricolora non potrebbe
        contarli per posizione, ne' per colore se due sono uguali. */
     return {
-      nome: p.nome, colore: p.colore, separato: p.separato, parte: p.parte,
+      nome: p.nome, colore: p.colore, separato: p.separato, parte: p.parte, slot: p.slot,
       maglia: p.sede ? magliaSede(an(p.d), an(p.dSede), p.z1, p.sede)
                      : maglia(an(p.d), p.z0, p.z1)
     };
@@ -9836,11 +9924,13 @@ function voci3MF(g, opz) {
   const o = opz || {};
   const pezzi = pezzi3D(g, o);
   if (!pezzi.length) return null;
+  const m = modello(pezzi, o.nome || 'Portachiavi');
   /* [Content_Types].xml deve stare per primo dentro l'archivio: e' la regola
      dei pacchetti OPC, su cui il 3MF e' costruito. */
   return [{ nome: '[Content_Types].xml', testo: TIPI },
           { nome: '_rels/.rels', testo: RELAZIONI },
-          { nome: '3D/3dmodel.model', testo: modello(pezzi, o.nome || 'Portachiavi') }];
+          { nome: '3D/3dmodel.model', testo: m.modello }]
+    .concat(m.slot ? [{ nome: 'Metadata/model_settings.config', testo: m.slot }] : []);
 }
 
 /* Un 3MF e' un archivio zip con dentro quelle tre voci: lo scrive Zip, che i
@@ -11001,12 +11091,18 @@ const SFONDI = [
 ];
 let timerSpessore = null;
 
+/* Gli slot della stampante. Quattro perche' tanti ne hanno l'AMS di Bambu e
+   il CANVAS di Elegoo, e fino a quattro colori si vogliono per i loghi. */
+const SLOT = 4;
+const coloreSlot = (n) => { const el = $('#slot' + n); return el ? el.value : '#888888'; };
+
 const modoAttuale = () => document.querySelector('.scheda[aria-selected=true]').dataset.modo;
 
 function leggiCfg() {
   const v = (id) => parseFloat($('#' + id).value) || 0;
   const attivi = [...document.querySelectorAll('#coloriLogo input[data-i]')].map(c => c.checked);
   const incassi = [...document.querySelectorAll('#coloriLogo input[data-incassa]')].map(c => c.checked);
+  const slotColori = [...document.querySelectorAll('#coloriLogo .vocecolore')].map(v => +v.dataset.slot);
   return {
     modo: modoAttuale(),
     testo: $('#testo').value,
@@ -11015,6 +11111,7 @@ function leggiCfg() {
     logo: stato.logo,
     coloriAttivi: attivi,
     incassaColori: incassi,
+    slotColori,
     unisciColori: $('#unisciColori').checked,
     adattaA: $('#adattaA').value,
     dimensione: v('dimensione'),
@@ -11041,27 +11138,41 @@ function leggiCfg() {
     sovrapp: v('sovrappN'),
     asolaX: v('asolaX'),
     asolaY: v('asolaY'),
-    minSpessore: v('minSpessore')
+    minSpessore: v('minSpessore'),
+    /* Le bobine: il colore di ogni slot e lo slot di base e scritta. Anche
+       questi il motore non li guarda; servono all'anteprima e al .3mf. */
+    slot1: $('#slot1').value, slot2: $('#slot2').value,
+    slot3: $('#slot3').value, slot4: $('#slot4').value,
+    slotBase: +$('#slotBase').value || 1,
+    slotTesto: +$('#slotTesto').value || 2
   };
 }
 
-/* Nell'anteprima il colore del logo si usa cosi' com'e', tranne quando e' quasi
-   uguale a quello della base: allora il dettaglio sparirebbe alla vista. */
-function coloreParte(p) {
-  if (!p.colore) return $('#colTesto').value;
-  const rgb = (c) => [1, 3, 5].map(i => parseInt(c.substr(i, 2), 16));
-  const a = rgb(p.colore), b = rgb($('#colBase').value);
-  const dist = Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]) + Math.abs(a[2]-b[2]);
-  return dist < 60 ? $('#colTesto').value : p.colore;
+/* Lo slot di ogni parte del pezzo. Con la scritta e' quello della scritta;
+   con un logo lo dice la riga di ogni colore. Si cerca per colore e non per
+   posizione, come per gli incassi: il motore scarta i colori che non lasciano
+   geometria stampabile, e gli indici scivolerebbero. Con i colori fusi in uno
+   la parte ha il colore del primo acceso, e prende il suo slot. */
+function slotParti(g, cfg) {
+  if (cfg.modo !== 'logo' || !cfg.logo) return g.parti.map(() => cfg.slotTesto);
+  const perColore = {};
+  cfg.logo.gruppi.forEach((gr, j) => { perColore[gr.colore] = cfg.slotColori[j]; });
+  return g.parti.map(p => perColore[p.colore] || cfg.slotTesto);
 }
+
+/* Anteprima e .3mf mostrano i colori delle bobine, non quelli del file del
+   logo: e' quello che uscira' dalla stampante. Prima l'anteprima schiariva un
+   colore del logo troppo simile alla base; adesso una parte sullo stesso slot
+   della base lo dice un avviso, perche' in stampa sparirebbe davvero. */
+const coloriParti = (g, cfg) => slotParti(g, cfg).map(coloreSlot);
 
 function disegna(g) {
   // l'SVG e' grande quanto il pezzo vero: cosi' zoom 1 = grandezza naturale
   $('#palco').innerHTML =
     `<svg width="${(g.W * PXMM).toFixed(2)}" height="${(g.H * PXMM).toFixed(2)}" ` +
     `viewBox="0 0 ${g.W} ${g.H}">` +
-    `<path fill="${$('#colBase').value}" fill-rule="evenodd" d="${g.dBase}"/>` +
-    g.parti.map((p) => `<path fill="${coloreParte(p)}" fill-rule="evenodd" d="${p.d}"/>`).join('') +
+    `<path fill="${coloreSlot(stato.cfg.slotBase)}" fill-rule="evenodd" d="${g.dBase}"/>` +
+    coloriParti(g, stato.cfg).map((c, i) => `<path fill="${c}" fill-rule="evenodd" d="${g.parti[i].d}"/>`).join('') +
     `</svg>`;
   $('#vuoto').textContent = '';
   if (stato.adattato) applicaVista();
@@ -11184,10 +11295,8 @@ function costruisci3D() {
   const V = stato.vista3d, g = stato.g, cfg = stato.cfg;
   if (!stato.tre || !V) return;
   if (!g) { V.carica([]); stato.chiave3d = ''; return; }
-  /* Gli stessi pezzi del .3mf, con i colori dell'anteprima piatta: quelli
-     che coloreParte schiarisce quando si confonderebbero con la base. */
+  /* Gli stessi pezzi del .3mf, coi colori delle bobine come l'anteprima piatta. */
   const opz = opzioniSolido(g, cfg);
-  opz.coloriParti = g.parti.map(p => coloreParte(p));
   const colori = [opz.coloreBase].concat(opz.coloriParti);
   /* Cambiare un colore non cambia la maglia: si ricolora e basta. */
   const chiave = [opz.altezzaBase, opz.altezzaParte, opz.sede, opz.gioco, opz.incassa.join(),
@@ -11228,6 +11337,7 @@ function applicaSfondo() {
 function messaggio(cls, testo) { return `<div class="msg ${cls}">${testo}</div>`; }
 
 function aggiorna() {
+  disegnaSlot();      // anche un logo appena letto ha le sue righe da riempire
   const cfg = leggiCfg();
   stato.cfg = cfg;
   let g;
@@ -11277,6 +11387,12 @@ function scriviInfo(g, cfg) {
       `rischiano di venire male in stampa. Ingrandisci il pezzo` +
       (cfg.modo === 'logo' ? ` oppure ingrossa il disegno con «ritocca» fra le impostazioni avanzate.`
                            : ` o scegli un font più grasso.`));
+  const suBase = parteSuBase(g, cfg);
+  if (suBase.length)
+    html += messaggio('avviso', `${suBase.map(i => `<b>${etichettaParte(g, i)}</b>`).join(' e ')} ` +
+      `${suBase.length > 1 ? 'sono' : 'è'} sullo <b>stesso slot della base</b> (${cfg.slotBase}): ` +
+      `in stampa ${suBase.length > 1 ? 'uscirebbero' : 'uscirebbe'} dello stesso colore e non si vedrebbe. ` +
+      `Scegli un altro slot in «Bobine».`);
   if (g.mancanti.length)
     html += messaggio('avviso', `Il font non ha questi caratteri: <b>${g.mancanti.join(' ')}</b>`);
   if (g.avvisi && g.avvisi.length)
@@ -11299,6 +11415,28 @@ function scriviInfo(g, cfg) {
   $('#info').innerHTML = html;
 }
 
+/* Le parti che stanno sullo slot della base: in stampa avrebbero il suo
+   colore. Una parte incassata e stampata a parte e' un pezzo diverso, ma una
+   volta incollata nella sede sparirebbe lo stesso. */
+function parteSuBase(g, cfg) {
+  const sp = slotParti(g, cfg);
+  return g.parti.map((p, i) => i).filter(i => sp[i] === cfg.slotBase);
+}
+
+/* «base → slot 1 · scritta → slot 2», per il bottone e il leggimi. */
+function elencoSlot(g, cfg) {
+  const sp = slotParti(g, cfg);
+  return ['base → slot ' + cfg.slotBase]
+    .concat(g.parti.map((p, i) => etichettaParte(g, i).toLowerCase() + ' → slot ' + sp[i]));
+}
+
+/* Lo slot piu' alto usato: lo slicer deve avere almeno tanti filamenti. Si
+   dice solo da 3 in su: con 1 e 2 un pezzo a due colori ne chiede due comunque.
+   Provato in Elegoo Slicer: un 3MF con le parti sugli slot 3 e 4, aperto in
+   un progetto con due filamenti soli, le mette tutte sul filamento 1 senza
+   dire niente. */
+const slotMassimo = (g, cfg) => Math.max(cfg.slotBase, ...slotParti(g, cfg));
+
 /* Il nome del pezzo, ripulito di tutto quello che i sistemi di file non
    gradiscono. Sta a parte perche' lo zip lo vuole anche da solo, per la
    cartella che contiene i file. */
@@ -11320,10 +11458,10 @@ function profonditaSede(cfg) {
   return Math.min(cfg.sedeProf, cfg.spesParte || SO.ALTEZZA_PARTE, cfg.spesBase || SO.ALTEZZA_BASE);
 }
 
-/* Quello che serve a Solido per scrivere il 3MF. I colori sono quelli
-   dell'anteprima: nel file finiscono come colore di visualizzazione, cosi'
-   aprendolo si riconosce a colpo d'occhio quale parte e' quale. Restano un
-   suggerimento — la bobina la sceglie chi stampa. */
+/* Quello che serve a Solido per scrivere il 3MF. Lo slot di ogni parte e'
+   quello che conta: lo slicer mette la parte su quel filamento. I colori sono
+   quelli delle bobine e finiscono solo come colore di visualizzazione, che
+   Bambu, Orca ed Elegoo ignorano (provato: aprendo il file restava bianco). */
 function opzioniSolido(g, cfg) {
   return {
     nome: nomeBase(),
@@ -11332,8 +11470,10 @@ function opzioniSolido(g, cfg) {
     sede: profonditaSede(cfg),
     gioco: cfg.gioco,
     incassa: incassaParti(g, cfg),
-    coloreBase: $('#colBase').value,
-    coloriParti: g.parti.map(p => p.colore || $('#colTesto').value),
+    coloreBase: coloreSlot(cfg.slotBase),
+    coloriParti: coloriParti(g, cfg),
+    slotBase: cfg.slotBase,
+    slotParti: slotParti(g, cfg),
     nomiParti: g.parti.map((p, i) => suffissoParte(g, i))
   };
 }
@@ -11388,7 +11528,12 @@ function costruisciScaricamenti(g) {
       `+ dettaglio ${alto(cfg.spesParte || SO.ALTEZZA_PARTE)} mm`;
   let html =
     `<button class="azione" data-solido="1">${sede ? 'Solido 3D con sede incassata (.3mf)' : 'Solido 3D già montato (.3mf)'}</button>` +
-    `<div class="sotto" style="margin:-4px 0 10px">${descrizione}</div>` +
+    `<div class="sotto" style="margin:-4px 0 4px">${descrizione}</div>` +
+    `<div class="sotto" style="margin:0 0 10px">${elencoSlot(g, cfg).join(' · ')}` +
+    (slotMassimo(g, cfg) > 2
+      ? ` — nello slicer servono almeno ${slotMassimo(g, cfg)} filamenti: ` +
+        `una parte su uno slot che non c'è finisce sul filamento 1`
+      : '') + `</div>` +
     `<button class="azione" data-zip="1">Scarica tutto in un .zip ` +
     `(${g.parti.length + 1} SVG da stampare, più il .3mf)</button>` +
     `<div class="oppure">oppure un file per volta</div>` +
@@ -11495,27 +11640,31 @@ function leggimi(g, cfg, quando) {
   r.push('  ' + base + '.3mf');
   const incassa = incassaParti(g, cfg), nIncasso = incassa.filter(Boolean).length;
   const sede = nIncasso ? profonditaSede(cfg) : 0;
+  const sl = slotParti(g, cfg);
+  if (slotMassimo(g, cfg) > 2)
+    r.push('      Nello slicer servono almeno ' + slotMassimo(g, cfg) + ' filamenti: una parte',
+           '      su uno slot che non c’è finisce sul filamento 1.');
   if (sede) {
     r.push('      ' + (nIncasso + 1) + ' pezzi separati, da stampare a parte e incollare:');
-    r.push('      la base alta ' + alto(cfg.spesBase) + ' con la sede incassata di ' +
+    r.push('      la base alta ' + alto(cfg.spesBase) + ' (slot ' + cfg.slotBase + ') con la sede incassata di ' +
            alto(sede) + (cfg.gioco > 0 ? ', allargata di ' + alto(cfg.gioco) + ' per lato' : '') + ',');
     g.parti.forEach((p, i) => {
       r.push('      ' + etichettaParte(g, i).toLowerCase() + ' alta ' + alto(cfg.spesParte) +
              (incassa[i] ? ' appoggiata sul piatto di fianco, da incollare nella sede'
                          : ' appoggiata sopra la base, si stampa insieme a lei') +
-             (p.colore ? ' (' + p.colore + ')' : '') + '.');
+             ' (slot ' + sl[i] + ').');
     });
     r.push('      Si stampano come sono; poi i pezzi a parte si incollano nella sede.');
   } else {
     r.push('      il pezzo già montato: si apre nello slicer come un oggetto');
     r.push('      solo fatto di ' + (g.parti.length + 1) + ' parti — base alta ' +
-           alto(cfg.spesBase) + ',');
+           alto(cfg.spesBase) + ' (slot ' + cfg.slotBase + '),');
     g.parti.forEach((p, i) => {
       r.push('      ' + etichettaParte(g, i).toLowerCase() + ' alta ' + alto(cfg.spesParte) +
-             ' appoggiata sopra' + (p.colore ? ' (' + p.colore + ')' : '') + '.');
+             ' appoggiata sopra (slot ' + sl[i] + ').');
     });
-    r.push('      Non c’è niente da estrudere né da allineare: si assegna una');
-    r.push('      bobina a ogni parte e si stampa.');
+    r.push('      Non c’è niente da estrudere né da allineare: ogni parte è già');
+    r.push('      sul suo slot, e con le stesse bobine nello slicer si stampa così.');
   }
 
   r.push('', 'OPPURE GLI SVG, NELL’ORDINE IN CUI SI CARICANO');
@@ -11551,6 +11700,8 @@ function leggimi(g, cfg, quando) {
   }
 
   const avvisi = avvisiTesto(g, cfg);
+  parteSuBase(g, cfg).forEach(i => avvisi.push(etichettaParte(g, i) +
+    ' è sullo stesso slot della base: in stampa non si vedrebbe.'));
   if (avvisi.length) {
     r.push('', 'DA TENERE D’OCCHIO');
     avvisi.forEach(a => r.push('  · ' + a));
@@ -11681,13 +11832,55 @@ function ritraccia() {
    incassato o resta sopra la base insieme a lei. Due label separate, non
    una dentro l'altra: un clic sulla seconda scatterebbe anche la prima. */
 function costruisciListaColori(L) {
+  const base = +$('#slotBase').value || 1;
   $('#coloriLogo').innerHTML = L.gruppi.map((g, i) =>
-    `<div class="vocecolore"><label><input type="checkbox" checked data-i="${i}">` +
+    `<div class="vocecolore" data-slot="${slotVicino(g.colore, base)}">` +
+    `<label><input type="checkbox" checked data-i="${i}">` +
     `<i class="pastiglia" style="background:${g.colore}"></i>` +
     `<span>${g.colore}</span></label>` +
+    `<div class="sceltaslot" role="radiogroup" aria-label="slot del colore ${g.colore}"></div>` +
     `<label class="incassa" title="Incassato nella base e stampato a parte, da incollare. ` +
     `Spento, resta sopra la base e si stampa insieme a lei.">` +
     `<input type="checkbox" checked data-incassa="${i}">da incollare</label></div>`).join('');
+}
+
+/* Lo slot che si propone per un colore del logo: la bobina di colore piu'
+   vicino, fra quelle che non sono della base (una parte sullo slot della
+   base sparirebbe). E' solo una proposta, la riga si cambia con un tocco.
+   La distanza e' la «redmean», RGB pesato per come l'occhio pesa i canali:
+   abbastanza per scegliere fra quattro bobine, senza passare dal Lab. */
+function slotVicino(colore, base) {
+  const rgb = (c) => [1, 3, 5].map(i => parseInt(c.substr(i, 2), 16));
+  const a = rgb(colore);
+  let meglio = base === 1 ? 2 : 1, dMin = Infinity;
+  for (let n = 1; n <= SLOT; n++) {
+    if (n === base) continue;
+    const b = rgb(coloreSlot(n)), r = (a[0] + b[0]) / 2;
+    const d = (2 + r / 256) * (a[0] - b[0]) ** 2 + 4 * (a[1] - b[1]) ** 2 + (2 + (255 - r) / 256) * (a[2] - b[2]) ** 2;
+    if (d < dMin) { dMin = d; meglio = n; }
+  }
+  return meglio;
+}
+
+/* I tasti degli slot, dappertutto: base, scritta e ogni colore del logo.
+   Si ridisegnano a ogni giro perche' portano il colore della bobina, che
+   puo' essere appena cambiato. Il numero va in nero sui colori chiari. */
+function disegnaSlot() {
+  const chiaro = (c) => {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(c.substr(i, 2), 16));
+    return 0.299 * r + 0.587 * g + 0.114 * b > 150;
+  };
+  document.querySelectorAll('.sceltaslot').forEach(el => {
+    const riga = el.closest('.vocecolore');
+    const scelto = riga ? +riga.dataset.slot : +$('#' + el.dataset.campo).value;
+    let html = '';
+    for (let n = 1; n <= SLOT; n++) {
+      const c = coloreSlot(n);
+      html += `<button type="button" role="radio" data-slot="${n}" aria-checked="${n === scelto}" ` +
+              `title="slot ${n}" style="background:${c}"${chiaro(c) ? ' data-chiaro' : ''}>${n}</button>`;
+    }
+    el.innerHTML = html;
+  });
 }
 
 /* La spunta «da incollare» si vede solo quando la sede e' accesa. */
@@ -11743,13 +11936,17 @@ const CHIAVE = 'portachiavi3d';
 function salva() {
   try {
     const c = leggiCfg();
-    delete c.logo; delete c.coloriAttivi; delete c.incassaColori;   // il logo non si conserva fra le sessioni
+    delete c.logo; delete c.coloriAttivi; delete c.incassaColori; delete c.slotColori;   // il logo non si conserva fra le sessioni
     localStorage.setItem(CHIAVE, JSON.stringify(c));
   } catch (e) {}
 }
 function ripristina() {
   let c; try { c = JSON.parse(localStorage.getItem(CHIAVE) || 'null'); } catch (e) {}
   if (!c) return;
+  /* Prima delle bobine c'erano due colori per l'anteprima, base e dettaglio:
+     diventano le bobine 1 e 2, che sono gli slot di partenza di base e
+     scritta, cosi' chi apre la versione nuova ritrova i colori di ieri. */
+  if (c.colBase && !c.slot1) { c.slot1 = c.colBase; c.slot2 = c.colTesto; }
   for (const [k, v] of Object.entries(c)) {
     for (const el of [document.getElementById(k), document.getElementById(k + 'N')]) {
       if (!el) continue;
@@ -11899,6 +12096,17 @@ function avvia() {
   });
 
   $('#coloriLogo').addEventListener('change', rigenera);
+  /* Un tocco su uno slot: per base e scritta va nel campo nascosto, per un
+     colore del logo nella sua riga. I campi nascosti non mandano «change»,
+     quindi si rigenera da qui. */
+  $('#pannello').addEventListener('click', (e) => {
+    const b = e.target.closest('.sceltaslot button');
+    if (!b) return;
+    const el = b.parentElement, riga = el.closest('.vocecolore');
+    if (riga) riga.dataset.slot = b.dataset.slot;
+    else $('#' + el.dataset.campo).value = b.dataset.slot;
+    rigenera();
+  });
   $('#colSfondo').addEventListener('input', () => {
     $('#sfondo').value = $('#colSfondo').value; applicaSfondo(); salva();
   });

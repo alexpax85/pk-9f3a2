@@ -9805,8 +9805,9 @@ function pezziDi(g, opz) {
   /* La sede non puo' essere piu' profonda della scritta che ci va dentro
      (starebbe sotto il piano) ne' della base: pari alla base e' una finestra. */
   const sede = g.dBase && opz.sede > 0 && quali.some(Boolean) ? Math.min(opz.sede, hP, hB) : 0;
+  const slot = opz.slotParti || [];
   if (g.dBase) pezzi.push({ nome: sede ? 'base con sede' : 'base', colore: opz.coloreBase, parte: -1,
-                            d: g.dBase, z0: 0, z1: hB,
+                            slot: opz.slotBase, d: g.dBase, z0: 0, z1: hB,
                             sede, dSede: sede ? sedeDi(g, opz.gioco, quali) : '' });
   g.parti.forEach((p, i) => {
     /* Una parte incassata non sta piu' sopra la base ma sul piatto, di
@@ -9820,7 +9821,7 @@ function pezziDi(g, opz) {
     const appoggio = !g.dBase ? 0 : !separato ? hB : opz.montato ? hB - sede : 0;
     pezzi.push({
       nome: nomi[i] || (g.parti.length > 1 ? 'colore' + (i + 1) : 'scritta'),
-      colore: colori[i] || p.colore,
+      colore: colori[i] || p.colore, slot: slot[i],
       d: p.d, z0: appoggio, z1: appoggio + hP, parte: i,
       scosta: separato && !opz.montato ? g.W + DISTANZA_PEZZI : 0, separato
     });
@@ -9890,27 +9891,69 @@ function modello(pezzi, nome) {
     xmlMaglia(p.maglia, r);
     r.push('</object>');
   });
+  /* Cosa entra nel piano: per ognuno l'id, il nome e, se e' un insieme di
+     componenti, le sue parti. Serve due volte, al modello e alle impostazioni
+     degli slot, che devono parlare degli stessi id. */
+  const id = (p) => pezzi.indexOf(p) + 2;
+  const insieme = (quali) => ({ id: pezzi.length + 2, nome, parti: quali });
   const fuori = pezzi.filter(p => p.separato), dentro = pezzi.filter(p => !p.separato);
+  let voci;
   if (fuori.length) {
-    const id = (p) => pezzi.indexOf(p) + 2;
-    const voci = fuori.map(id);
-    if (dentro.length > 1) {
-      const insieme = pezzi.length + 2;
-      r.push('<object id="' + insieme + '" type="model" name="' + esc(nome) + '"><components>');
-      dentro.forEach(p => r.push('<component objectid="' + id(p) + '"/>'));
-      r.push('</components></object>');
-      voci.unshift(insieme);
-    } else if (dentro.length) voci.unshift(id(dentro[0]));
-    r.push('</resources><build>');
-    voci.forEach(v => r.push('<item objectid="' + v + '"/>'));
-    r.push('</build></model>\n');
-    return r.join('');
+    voci = fuori.map(p => ({ id: id(p), nome: p.nome, slot: p.slot }));
+    if (dentro.length > 1) voci.unshift(insieme(dentro));
+    else if (dentro.length) voci.unshift({ id: id(dentro[0]), nome: dentro[0].nome, slot: dentro[0].slot });
+  } else voci = [insieme(pezzi)];
+  for (const v of voci) {
+    if (!v.parti) continue;
+    r.push('<object id="' + v.id + '" type="model" name="' + esc(v.nome) + '"><components>');
+    v.parti.forEach(p => r.push('<component objectid="' + id(p) + '"/>'));
+    r.push('</components></object>');
   }
-  const insieme = pezzi.length + 2;
-  r.push('<object id="' + insieme + '" type="model" name="' + esc(nome) + '"><components>');
-  pezzi.forEach((p, i) => r.push('<component objectid="' + (i + 2) + '"/>'));
-  r.push('</components></object></resources>');
-  r.push('<build><item objectid="' + insieme + '"/></build></model>\n');
+  r.push('</resources><build>');
+  voci.forEach(v => r.push('<item objectid="' + v.id + '"/>'));
+  r.push('</build></model>\n');
+  return { modello: r.join(''), slot: impostazioniSlot(voci, id) };
+}
+
+/* Lo slot dell'AMS di ogni parte, nel file che Bambu Studio, Orca ed Elegoo
+   Slicer leggono accanto al modello (Metadata/model_settings.config). Lo
+   standard del 3MF il materiale lo dice gia' (basematerials, qui sopra), ma
+   nessuno di quei tre lo usa per scegliere la bobina: aprendo il file tutte
+   le parti finivano sul filamento 1, bianche.
+
+   Provato dalla riga di comando di tutti e tre l'1 ottobre 2026: le parti
+   prendono il filamento indicato, anche 3 e 4, e il nome scritto qui («base»,
+   «scritta») invece di «Anna» e «Anna_2»; affettando col profilo della
+   Centauri Carbon 2 il G-code stampa la base col filamento della base e la
+   scritta col suo. Il file e' quello dell'insieme di componenti: l'oggetto e'
+   l'insieme, le parti sono gli oggetti che richiama.
+
+   I COLORI delle bobine invece non si scrivono. Starebbero in un altro file
+   (project_settings.config), ma scritto a meta' Bambu lo ignora e Orca ed
+   Elegoo si chiudono di colpo; e per farlo leggere il 3MF deve dichiararsi
+   progetto di Bambu Studio, e allora si chiude anche Bambu. Basta il numero:
+   lo slicer conosce le bobine caricate, e lo slot 2 e' gia' del colore che ha.
+
+   Senza slot (il chiosco, le prove delle impronte) il file non c'e' e il 3MF
+   resta quello di prima, byte per byte. */
+function impostazioniSlot(voci, id) {
+  const conSlot = (s) => s >= 1;
+  const tutti = [].concat(...voci.map(v => v.parti ? v.parti.map(p => p.slot) : [v.slot]));
+  if (!tutti.some(conSlot)) return null;
+  const meta = (k, v) => '<metadata key="' + k + '" value="' + esc(v) + '"/>';
+  const r = ['<?xml version="1.0" encoding="UTF-8"?>\n<config>\n'];
+  for (const v of voci) {
+    /* L'oggetto prende lo slot della prima parte: e' quello che lo slicer
+       mostra sulla riga dell'oggetto, e che una parte senza slot eredita. */
+    const primo = v.parti ? v.parti[0].slot : v.slot;
+    r.push(' <object id="' + v.id + '">' + meta('name', v.nome) +
+           (conSlot(primo) ? meta('extruder', primo) : '') + '\n');
+    for (const p of v.parti || [])
+      r.push('  <part id="' + id(p) + '" subtype="normal_part">' + meta('name', p.nome) +
+             (conSlot(p.slot) ? meta('extruder', p.slot) : '') + '</part>\n');
+    r.push(' </object>\n');
+  }
+  r.push('</config>\n');
   return r.join('');
 }
 
@@ -9940,7 +9983,7 @@ function pezzi3D(g, opz) {
        i pezzi senza triangoli spariscono, e chi li ricolora non potrebbe
        contarli per posizione, ne' per colore se due sono uguali. */
     return {
-      nome: p.nome, colore: p.colore, separato: p.separato, parte: p.parte,
+      nome: p.nome, colore: p.colore, separato: p.separato, parte: p.parte, slot: p.slot,
       maglia: p.sede ? magliaSede(an(p.d), an(p.dSede), p.z1, p.sede)
                      : maglia(an(p.d), p.z0, p.z1)
     };
@@ -9952,11 +9995,13 @@ function voci3MF(g, opz) {
   const o = opz || {};
   const pezzi = pezzi3D(g, o);
   if (!pezzi.length) return null;
+  const m = modello(pezzi, o.nome || 'Portachiavi');
   /* [Content_Types].xml deve stare per primo dentro l'archivio: e' la regola
      dei pacchetti OPC, su cui il 3MF e' costruito. */
   return [{ nome: '[Content_Types].xml', testo: TIPI },
           { nome: '_rels/.rels', testo: RELAZIONI },
-          { nome: '3D/3dmodel.model', testo: modello(pezzi, o.nome || 'Portachiavi') }];
+          { nome: '3D/3dmodel.model', testo: m.modello }]
+    .concat(m.slot ? [{ nome: 'Metadata/model_settings.config', testo: m.slot }] : []);
 }
 
 /* Un 3MF e' un archivio zip con dentro quelle tre voci: lo scrive Zip, che i
