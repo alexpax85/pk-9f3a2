@@ -648,6 +648,20 @@ html[data-faccia="admin"] #opChiudi { display: none; }
   .adMarchio .faccia { display: none; }
 }
 
+/* ----------------------------- dispositivi ------------------------------ */
+
+/* Le tabelle e le etichette sono quelle del gestionale (gestionale.css):
+   qui solo la pagina attorno, che e' una sola e non ha schede. */
+#disp { max-width: 1000px; padding: 0 18px 40px; }
+.dispTesta { display: flex; align-items: center; gap: 12px; margin: 18px 0 4px; }
+.dispTesta h2 { margin: 0; font-family: var(--display); font-size: 22px; letter-spacing: -.02em; }
+#disp > .guida { color: var(--tenue); font-size: 14px; max-width: 72ch; }
+.dispLettera { font-family: var(--display); font-weight: 700; font-size: 22px; width: 1%; }
+.dispNome { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.dispNome input { font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--linea);
+  background: var(--fondo); color: var(--testo); min-width: 0; flex: 1 1 180px; }
+.gestTabella .via[disabled] { opacity: .3; cursor: not-allowed; }
+
 /* =====================================================================
    Portachiavi 3D — stile dei grafici e delle cifre del cruscotto (solo
    quello che serve a src/grafici.js: le colonne, le barre e la linea sono
@@ -822,6 +836,7 @@ h3.sotto { margin: 26px 0 8px; font-family: var(--display); font-size: 17px; }
       <button type="button" data-vista="coda" aria-selected="true">Coda</button>
       <button type="button" data-vista="studio" aria-selected="false">Studio</button>
       <button type="button" data-vista="gestionale" aria-selected="false">Gestionale</button>
+      <button type="button" data-vista="dispositivi" aria-selected="false">Dispositivi</button>
     </nav>
     <span id="adUtente"></span>
     <button type="button" id="adEsci" class="bottone piccolo">Esci</button>
@@ -861,6 +876,9 @@ h3.sotto { margin: 26px 0 8px; font-family: var(--display); font-size: 17px; }
     <!-- il gestionale lo disegna gestionale.js, che legge dal server quando
          si apre la vista: non ha copia locale -->
     <section data-vista="gestionale" hidden><div id="gest"></div></section>
+
+    <!-- le postazioni del server: dispositivi.js, anche lui solo in rete -->
+    <section data-vista="dispositivi" hidden><div id="disp"></div></section>
   </main>
 </div>
 
@@ -10795,6 +10813,12 @@ const grezzo = {
   rinumera,
   fissaContatore,
   contatore,
+  /* Il dispositivo lascia la lettera: senza, i numeri tornano 1, 2, 3, e il
+     contatore riparte da li' alla prossima postazione (impostaPostazione). */
+  lasciaPostazione() {
+    try { localStorage.removeItem(CHIAVE_POST); localStorage.removeItem(CHIAVE_CONT); return true; }
+    catch (e) { return false; }
+  },
 };
 
 return {
@@ -10885,6 +10909,15 @@ let giro = null;                // la promessa del giro in corso, se c'e'
 let ancora = false;             // chiesto un giro mentre ne correva uno
 let spinta = null;              // il giro chiesto dopo una scrittura
 let ultimo = { quando: null, errore: null, rete: true };
+/* La lettera di questo dispositivo non c'e' piu' sul server (l'ha tolta
+   l'admin da Dispositivi). Ogni ordine deve puntare a una postazione che
+   esiste, quindi il server li rifiuterebbe con un 409, lo stesso di un
+   numero gia' preso: senza fermarsi, il giro li rinumererebbe all'infinito. */
+let tolta = false;
+/* Mentre si lascia la postazione non partono giri: uno partito durante il
+   controllo sul server finirebbe dopo lo svuotamento, e riscriverebbe gli
+   ordini ripresi nel margine (la prova lo ha visto: due su due). */
+let lasciando = false;
 const ascoltatori = [];
 
 function leggi(k, ripiego) {
@@ -11071,6 +11104,74 @@ async function collega({ lettera, nome, portaOrdini }) {
 }
 
 const collegato = () => !!(sessione && !sessione.scaduta && puoScrivere());
+
+/* La postazione tolta dal server si rimette, con la stessa lettera: e' la
+   strada per un dispositivo che ha ancora ordini da mandare. Il nome si e'
+   perso con la riga, lo si ridà dall'admin. */
+async function riprendi() {
+  const L = D.postazione();
+  if (!L || !collegato()) return;
+  await chiama('POST', '/rest/v1/postazioni', { lettera: L, nome: '' },
+               { Prefer: 'resolution=ignore-duplicates,return=minimal' });
+  tolta = false;
+  return sincronizza();
+}
+
+/* Lasciare la lettera: il dispositivo torna com'era prima del collegamento,
+   senza ordini, e puo' prenderne un'altra o riprendere la stessa. Si fa
+   solo quando sul server c'e' tutto quello che ha: niente in coda di
+   uscita, e ogni ordine della copia locale ritrovato sul server. Poi la
+   copia locale si svuota, perche' sono gli ordini del server: a una
+   postazione nuova tornano col primo giro, e tenendoli il collegamento
+   offrirebbe di «portarli sul server», con la lettera sbagliata. La riga
+   della postazione sul server resta: toglierla e' dell'admin, che vede se
+   ha ordini. La sessione resta, per scegliere subito la lettera nuova. */
+async function lascia() {
+  const L = D.postazione();
+  if (!L) return;
+  if (!collegato())
+    throw new Error('Per lasciare la postazione bisogna essere entrati: prima controllo che sul ' +
+                    'server ci sia tutto quello che c’è qui.');
+  await sincronizza();
+  lasciando = true;
+  try {
+    if (giro) await giro;
+    await lasciaOra(L);
+  } finally {
+    lasciando = false;
+  }
+}
+
+async function lasciaOra(L) {
+  if (inAttesa())
+    throw new Error('Ci sono ' + inAttesa() + ' modifiche che non sono ancora partite: la ' +
+                    'postazione resta finché non arrivano sul server.' +
+                    (tolta ? ' Per mandarle bisogna prima riprendere la lettera ' + L + '.' : ''));
+  const sulServer = new Set();
+  const PAGINA = 1000;
+  for (let dal = 0; ; dal += PAGINA) {
+    const r = await chiama('GET', '/rest/v1/ordini?select=numero&order=numero&limit=' + PAGINA +
+                                  '&offset=' + dal);
+    (r || []).forEach(x => sulServer.add(String(x.numero)));
+    if (!r || r.length < PAGINA) break;
+  }
+  // da qui in fondo niente await: un ordine preso intanto non deve sparire
+  if (inAttesa()) throw new Error('È appena cambiato qualcosa: riprova fra un attimo.');
+  const mancano = D.leggiOrdini().map(o => String(o.numero)).filter(n => !sulServer.has(n));
+  if (mancano.length)
+    throw new Error(mancano.length + (mancano.length === 1 ? ' ordine' : ' ordini') + ' di qui non ' +
+                    (mancano.length === 1 ? 'è' : 'sono') + ' sul server (' +
+                    mancano.slice(0, 5).join(', ') + (mancano.length > 5 ? '…' : '') + '): lasciando ' +
+                    'la postazione si perderebbero. Resta collegato e fai una copia di sicurezza ' +
+                    'dalla scheda Dispositivo.');
+  if (!D.grezzo.scriviOrdini([]) || !D.grezzo.lasciaPostazione())
+    throw new Error('Non riesco a scrivere su questo dispositivo.');
+  stato = { cursore: null, catVersione: 0, catDaInviare: false, uscita: {}, gen: 0 };
+  salvaStato();
+  tolta = false;
+  ultimo = { quando: null, errore: null, rete: true };
+  annuncia({ stato: true, ordini: true });
+}
 
 /* --------------------------------------------------------- coda di uscita
    Per ogni ordine si ricorda cosa e' cambiato, non il contenuto: al momento
@@ -11345,24 +11446,35 @@ async function riceviOrdini(cambiato) {
 
 /* ------------------------------------------------------------------ giro */
 
+/* Il primo passo del giro: segna l'ora del contatto sulla postazione, che
+   l'admin legge in Dispositivi, e insieme scopre se la postazione c'e'
+   ancora. Prima si segnava in fondo, senza aspettare: e' la stessa
+   richiesta, solo che adesso la risposta conta. */
+async function presente() {
+  const L = D.postazione();
+  if (!L) return;
+  const r = await chiama('PATCH', '/rest/v1/postazioni?lettera=eq.' + L,
+                         { visto_il: new Date().toISOString() }, { Prefer: 'return=representation' });
+  tolta = !(r && r.length);
+  if (tolta) throw new Error('La postazione ' + L + ' non c’è più sul server.');
+}
+
 /* Un giro alla volta. Chi lo chiede mentre ne corre uno non puo' accodarsi
    a quello: la sua modifica e' arrivata dopo che il giro aveva gia' letto
    la coda, e aspetterebbe il prossimo intervallo. Se ne fa un altro subito
    dopo. */
 function sincronizza() {
-  if (!collegato()) return Promise.resolve(null);
+  if (!collegato() || lasciando) return Promise.resolve(null);
   if (giro) { ancora = true; return giro; }
   giro = (async () => {
     const cambiato = { ordini: false, catalogo: false };
     const avvisi = [];
     try {
+      await presente();
       await invia(avvisi);
       await riceviCatalogo(cambiato);
       await riceviOrdini(cambiato);
       ultimo = { quando: new Date().toISOString(), errore: null, rete: true };
-      if (D.postazione())
-        chiama('PATCH', '/rest/v1/postazioni?lettera=eq.' + D.postazione(),
-               { visto_il: ultimo.quando }, { Prefer: 'return=minimal' }).catch(() => {});
     } catch (e) {
       ultimo = { quando: ultimo.quando, errore: e.message, rete: !e.rete };
     } finally {
@@ -11389,6 +11501,7 @@ function descrivi() {
     errore: ultimo.errore,
     senzaRete: !ultimo.rete,
     inCorso: !!giro,
+    postazioneTolta: tolta,
     primaDelCollegamento: (leggi(K_PRIMA, []) || []).length,
     schema: SCHEMA,
   };
@@ -11411,7 +11524,7 @@ function avvia() {
 }
 
 return {
-  collega, entra, esci, postazioni, sincronizza, avvia, quandoCambia,
+  collega, entra, esci, postazioni, sincronizza, avvia, quandoCambia, lascia, riprendi,
   collegato, stato: descrivi,
   ruolo: () => (sessione && sessione.ruolo) || null,
   ordiniPrima: () => leggi(K_PRIMA, []),
@@ -15949,7 +16062,13 @@ function statoSincroHTML(S) {
     '<p class="sotto">Ultimo scambio col server: ' + oraSincro(S.ultimaVolta) +
     (S.inAttesa ? ' · <b>' + S.inAttesa + '</b> modifiche in attesa di partire' : ' · tutto inviato') +
     '</p>' +
-    (S.errore ? '<div class="avviso errore">' + (S.senzaRete
+    (S.postazioneTolta ? '<div class="avviso errore">La postazione <b>' + esc(S.postazione) +
+      '</b> è stata tolta dal server (dall’admin, in Dispositivi), quindi questo dispositivo ' +
+      'non si sincronizza più. Se è ancora lui a prendere gli ordini, riprendi la lettera; ' +
+      'se no, lascia la postazione.<div class="fila">' +
+      '<button type="button" class="bottone piccolo" data-riprendi="1">Riprendi la lettera ' +
+      esc(S.postazione) + '</button></div></div>' :
+    S.errore ? '<div class="avviso errore">' + (S.senzaRete
       ? 'Il server non risponde. Il chiosco continua a lavorare: quello che ' +
         'succede qui parte appena torna la rete.'
       : 'Il server ha risposto con un errore: ' + esc(S.errore)) + '</div>' : '');
@@ -15973,7 +16092,14 @@ function sezioneCollegamento() {
     '<div class="fila">' +
     '<button type="button" class="bottone piccolo" data-sincronizza="1">Sincronizza adesso</button>' +
     '<button type="button" class="bottone piccolo" data-esci="1">Esci</button>' +
-    '</div></div>';
+    '</div></div>' +
+    (S.postazione ? '<div class="sezione"><h3>Lasciare la postazione</h3>' +
+      '<p>Per un dispositivo che va ricollegato con un’altra lettera, o che non ' +
+      'prende più ordini. Smette di sincronizzarsi e la sua coda si svuota: gli ordini restano ' +
+      'sul server e tornano appena lo ricolleghi. Si può solo quando sul server c’è già tutto ' +
+      'quello che c’è qui.</p>' +
+      '<div class="fila"><button type="button" class="bottone piccolo" data-lascia="1">' +
+      'Lascia la postazione ' + esc(S.postazione) + '</button></div></div>' : '');
 
   // la postazione c'e' ma l'utente no: si rientra e basta
   if (S.postazione) return '<div class="sezione"><h3>Collegamento</h3>' +
@@ -16048,6 +16174,7 @@ function aggiornaSincro() {
   let v, t;
   if (!S.postazione && !S.entrato) { v = 'mai'; t = 'non collegato'; }
   else if (!S.collegato) { v = 'fermo'; t = S.scaduta ? 'accesso scaduto' : 'non collegato'; }
+  else if (S.postazioneTolta) { v = 'errore'; t = 'postazione tolta'; }
   else if (S.errore) { v = 'errore'; t = S.senzaRete ? 'senza rete' : 'errore del server'; }
   else if (S.inAttesa) { v = 'attesa'; t = S.inAttesa + ' in attesa'; }
   else { v = 'ok'; t = 'sincronizzato'; }
@@ -16392,6 +16519,18 @@ function collegaOperatore() {
       if (Sincro.stato().inAttesa &&
           !confirm('Ci sono modifiche non ancora inviate: partiranno al prossimo accesso. Uscire?')) return;
       return azioneCollegamento(() => Sincro.esci());
+    }
+    if (t.closest('[data-riprendi]')) return azioneCollegamento(() => Sincro.riprendi());
+    if (t.closest('[data-lascia]')) {
+      const L = Sincro.stato().postazione;
+      if (!confirm('Lasciare la postazione ' + L + '? Questo dispositivo smette di sincronizzarsi ' +
+                   'e la sua coda si svuota; gli ordini restano sul server. Prima controllo che ' +
+                   'sul server ci sia tutto.')) return;
+      return azioneCollegamento(async () => {
+        await Sincro.lascia();
+        avvisa('Postazione ' + L + ' lasciata. Per ricollegare il dispositivo scegli una lettera; ' +
+               'per togliere la ' + L + ' dal server c’è Dispositivi, nell’admin.');
+      });
     }
     if (t.closest('[data-collega]')) {
       const porta = $('#sPorta');
@@ -18103,12 +18242,227 @@ return { mostra, __prova };
 })();
 
 /* =====================================================================
+   MOV3DO — i dispositivi, nella faccia admin
+   Le postazioni del server (supabase/schema.sql): la lettera, il nome,
+   quando si e' fatta viva l'ultima volta e quanti ordini portano la sua
+   lettera. Si rinomina e, se non ha ordini, si toglie.
+
+   Il server non sa quale dispositivo fisico ha una lettera: lo sa il
+   dispositivo, e lo dice il pallino in testata all'operatore. Per questo
+   qui non si «scollega» niente: un dispositivo lascia la sua lettera da
+   se' (Collegamento -> Lascia la postazione), e qui poi la si toglie.
+   Come il gestionale, vive in rete: niente copia locale.
+   ===================================================================== */
+window.Dispositivi = (function () {
+'use strict';
+
+const S = window.Sincro;
+const $ = (s, dove) => (dove || document).querySelector(s);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* «Attivo adesso» se si e' fatto vivo nell'ultimo minuto: un dispositivo
+   collegato con la pagina aperta segna l'ora a ogni giro, cioe' ogni
+   Sincro.POLL_MS (15 s). Un minuto sono quattro giri persi di fila, che
+   una rete lenta non spiega. Una scelta, non una misura. */
+const ATTIVO_MS = 4 * S.POLL_MS;
+
+let dati = null;            // { postazioni, ordini: Map lettera -> { vivi, tutti, ultimo } }
+let rinomina = null;        // la lettera col nome aperto
+let caricando = null;
+let orologio = null;
+
+/* Tutte le righe, a pagine: il server ne da' al massimo mille per volta. */
+async function tutte(percorso) {
+  const fuori = [];
+  const PAGINA = 1000;
+  for (let dal = 0; ; dal += PAGINA) {
+    const r = await S.rest('GET', percorso + '&limit=' + PAGINA + '&offset=' + dal);
+    fuori.push(...(r || []));
+    if (!r || r.length < PAGINA) return fuori;
+  }
+}
+
+async function carica() {
+  const [postazioni, ordini] = await Promise.all([
+    S.rest('GET', '/rest/v1/postazioni?select=*&order=lettera'),
+    tutte('/rest/v1/ordini?select=postazione,eliminato,quando&order=numero'),
+  ]);
+  /* Per togliere una postazione contano anche gli ordini cancellati: la
+     riga resta sul server (eliminato = vero) e punta ancora alla lettera,
+     e il database rifiuterebbe di toglierla. */
+  const conti = new Map();
+  for (const o of ordini) {
+    if (!o.postazione) continue;
+    const c = conti.get(o.postazione) || { vivi: 0, tutti: 0, ultimo: null };
+    c.tutti++;
+    if (!o.eliminato) {
+      c.vivi++;
+      if (!c.ultimo || o.quando > c.ultimo) c.ultimo = o.quando;
+    }
+    conti.set(o.postazione, c);
+  }
+  dati = { postazioni: postazioni || [], ordini: conti };
+}
+
+/* ------------------------------------------------------------- disegno */
+
+const quando = (iso) => new Date(iso).toLocaleString('it-IT',
+  { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+function fa(iso) {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (s < 60) return 'adesso';
+  if (s < 3600) return Math.floor(s / 60) + ' min fa';
+  if (s < 86400) { const h = Math.floor(s / 3600); return h === 1 ? 'un’ora fa' : h + ' ore fa'; }
+  const g = Math.floor(s / 86400);
+  return g === 1 ? 'ieri' : g + ' giorni fa';
+}
+
+function contatto(p) {
+  if (!p.visto_il) return '<span class="tenue">mai</span>';
+  const attivo = Date.now() - new Date(p.visto_il).getTime() < ATTIVO_MS;
+  return (attivo ? '<span class="esito" data-v="ok">attivo adesso</span>' : '<b>' + fa(p.visto_il) + '</b>') +
+    '<br><span class="tenue">' + quando(p.visto_il) + '</span>';
+}
+
+function riga(p) {
+  const c = dati.ordini.get(p.lettera) || { vivi: 0, tutti: 0, ultimo: null };
+  const nome = rinomina === p.lettera
+    ? '<form class="dispNome" data-dnome="' + esc(p.lettera) + '"><input name="nome" value="' +
+      esc(p.nome) + '" maxlength="60" placeholder="per esempio iPad banco">' +
+      '<button type="submit" class="bottone forte piccolo">Salva</button>' +
+      '<button type="button" class="bottone piccolo" data-dannulla="1">Annulla</button></form>'
+    : (p.nome ? '<b>' + esc(p.nome) + '</b>' : '<span class="tenue">senza nome</span>') +
+      '<br><span class="tenue">creata il ' + quando(p.creata_il) + '</span>';
+  const togli = c.tutti
+    ? '<button type="button" class="via" disabled title="Ha ' + c.tutti + ' ordini sul server: ' +
+      'la lettera è nei loro numeri e resta">✕</button>'
+    : '<button type="button" class="via" data-dtogli="' + esc(p.lettera) + '" title="Togli">✕</button>';
+  return '<tr><td class="dispLettera">' + esc(p.lettera) + '</td>' +
+    '<td>' + nome + '</td>' +
+    '<td>' + contatto(p) + '</td>' +
+    '<td class="n">' + c.vivi + (c.tutti > c.vivi ? '<br><span class="tenue">+' + (c.tutti - c.vivi) +
+      ' cancellati</span>' : '') + '</td>' +
+    '<td>' + (c.ultimo ? quando(c.ultimo) : '<span class="tenue">nessuno</span>') + '</td>' +
+    '<td class="n"><span class="azioni"><button type="button" class="via" data-drinomina="' +
+      esc(p.lettera) + '" title="Rinomina">✎</button>' + togli + '</span></td></tr>';
+}
+
+function disegna() {
+  const dove = $('#disp');
+  if (!dove) return;
+  const testa = '<div class="dispTesta"><h2>Dispositivi</h2>' +
+    '<button type="button" class="bottone piccolo" data-dricarica="1" title="Rileggi dal server">↻</button></div>' +
+    '<p class="guida">Ogni dispositivo che prende ordini ha una lettera, che entra nei numeri ' +
+    '(A-001). Quale dispositivo ha quale lettera lo dice il dispositivo stesso: il pallino in ' +
+    'testata all’operatore («A · sincronizzato»). L’ultimo contatto si aggiorna ogni 15 secondi ' +
+    'finché il chiosco è aperto: un iPad con lo schermo spento sembra fermo, ed è normale.</p>';
+  if (!dati) { dove.innerHTML = testa + '<p class="guida">Leggo le postazioni dal server…</p>'; return; }
+  dove.innerHTML = testa +
+    (dati.postazioni.length
+      ? '<div class="gestTabella"><table><thead><tr><th></th><th>Nome</th><th>Ultimo contatto</th>' +
+        '<th class="n">Ordini</th><th>Ultimo ordine</th><th></th></tr></thead><tbody>' +
+        dati.postazioni.map(riga).join('') + '</tbody></table></div>'
+      : '<p class="guida vuoto">Nessuna postazione: nessun dispositivo si è ancora collegato.</p>') +
+    '<p class="guida piccola">Per togliere una lettera: prima il dispositivo la lascia ' +
+    '(Collegamento → Lascia la postazione), poi la si toglie qui. Al contrario il dispositivo se ' +
+    'ne accorge e smette di sincronizzarsi finché non la riprende o la lascia. Si toglie solo una ' +
+    'lettera senza ordini: gli altri la portano nei loro numeri.</p>';
+}
+
+function errore(e) {
+  const dove = $('#disp');
+  if (!dove) return;
+  disegna();
+  dove.insertAdjacentHTML('beforeend', '<div class="avviso errore">' + (e && e.rete
+    ? 'Il server non risponde: i dispositivi si vedono solo in rete.'
+    : 'Il server ha risposto con un errore: ' + esc(e && e.message || e)) + '</div>');
+}
+
+async function ricarica() {
+  if (caricando) return caricando;
+  caricando = (async () => {
+    try { await carica(); disegna(); }
+    catch (e) { errore(e); }
+    finally { caricando = null; }
+  })();
+  return caricando;
+}
+
+/* Dopo ogni scrittura si rilegge: quello che si vede e' quello che c'e'. */
+async function eFatto(promessa) {
+  try {
+    await promessa;
+    rinomina = null;
+    await ricarica();
+  } catch (e) {
+    alert(e && e.rete ? 'Il server non risponde: non ho salvato.' : 'Non ho salvato: ' + (e.message || e));
+  }
+}
+
+const visibile = () => {
+  const s = $('section[data-vista="dispositivi"]');
+  return s && !s.hidden && document.visibilityState === 'visible';
+};
+
+function mostra() {
+  disegna();
+  ricarica();
+  /* Si rilegge da solo, al passo dei dispositivi, finche' la vista e'
+     aperta: «attivo adesso» deve poter cambiare sotto gli occhi. Non
+     mentre si scrive un nome. */
+  if (!orologio) orologio = setInterval(() => {
+    if (visibile() && rinomina === null) ricarica();
+  }, S.POLL_MS);
+}
+
+function avvia() {
+  const dove = $('#disp');
+  if (!dove) return;
+  dove.addEventListener('click', (ev) => {
+    const t = ev.target;
+    if (t.closest('[data-dricarica]')) return ricarica();
+    const r = t.closest('[data-drinomina]');
+    if (r) { rinomina = r.dataset.drinomina; disegna(); const i = $('.dispNome input'); if (i) i.focus(); return; }
+    if (t.closest('[data-dannulla]')) { rinomina = null; disegna(); return; }
+    const via = t.closest('[data-dtogli]');
+    if (via) {
+      const L = via.dataset.dtogli;
+      if (!confirm('Togliere la postazione ' + L + '? Se un dispositivo ha ancora questa lettera, ' +
+                   'smette di sincronizzarsi finché non la riprende o la lascia.')) return;
+      /* Il filtro sugli ordini e' una sicura in piu': il database la
+         rifiuterebbe comunque, ma un ordine arrivato dopo l'ultima lettura
+         darebbe un errore di chiave esterna, poco chiaro. */
+      return eFatto((async () => {
+        const o = await S.rest('GET', '/rest/v1/ordini?select=numero&postazione=eq.' + L + '&limit=1');
+        if (o && o.length) throw new Error('nel frattempo la postazione ' + L + ' ha preso un ordine.');
+        await S.rest('DELETE', '/rest/v1/postazioni?lettera=eq.' + L, undefined, { Prefer: 'return=minimal' });
+      })());
+    }
+  });
+  dove.addEventListener('submit', (ev) => {
+    const f = ev.target.closest('[data-dnome]');
+    if (!f) return;
+    ev.preventDefault();
+    eFatto(S.rest('PATCH', '/rest/v1/postazioni?lettera=eq.' + f.dataset.dnome,
+                  { nome: f.elements.nome.value.trim() }, { Prefer: 'return=minimal' }));
+  });
+}
+
+document.addEventListener('DOMContentLoaded', avvia);
+
+return { mostra };
+})();
+
+/* =====================================================================
    MOV3DO — faccia admin: accesso e viste
    La coda la disegna chiosco.js, lo stesso codice della parte operatore
    del chiosco (window.Operatore), e la sincronizzazione e' quella di
    sincro.js, qui senza postazione. Questo file fa solo tre cose: non
-   lascia vedere niente senza un utente admin, passa fra Coda, Studio e
-   Gestionale (gestionale.js), e carica lo studio la prima volta che serve.
+   lascia vedere niente senza un utente admin, passa fra Coda, Studio,
+   Gestionale (gestionale.js) e Dispositivi (dispositivi.js), e carica lo
+   studio la prima volta che serve.
    ===================================================================== */
 window.Admin = (function () {
 'use strict';
@@ -18120,7 +18474,7 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 /* La vista aperta si ricorda sul dispositivo: chi lavora nello studio e
    riapre l'app ci si ritrova. E' una comodita', se manca si parte dalla coda. */
 const K_VISTA = 'mov3do.admin.vista';
-const VISTE = ['coda', 'studio', 'gestionale'];
+const VISTE = ['coda', 'studio', 'gestionale', 'dispositivi'];
 
 function leggiVista() {
   try { const v = localStorage.getItem(K_VISTA); return VISTE.includes(v) ? v : 'coda'; }
@@ -18170,6 +18524,7 @@ function vai(vista) {
   if (vista === 'studio') apriStudio();
   if (vista === 'coda') window.Operatore.ridisegna();
   if (vista === 'gestionale') window.Gestionale.mostra();
+  if (vista === 'dispositivi') window.Dispositivi.mostra();
   try { localStorage.setItem(K_VISTA, vista); } catch (e) {}
 }
 
