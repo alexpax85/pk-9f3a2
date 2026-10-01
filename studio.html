@@ -93,8 +93,11 @@ header{display:flex;align-items:center;gap:14px;height:52px;padding:0 18px;
   color:var(--accento);border:1px solid rgba(var(--accento-rgb),.4);border-radius:999px;padding:4px 9px 3px}
 
 /* ------------------------------- impianto ------------------------------ */
-.griglia{display:grid;grid-template-columns:392px 1fr;height:calc(100vh - 53px)}
-@media (max-width:900px){.griglia{grid-template-columns:1fr;height:auto}
+/* minmax(0,1fr) e non 1fr: una colonna 1fr non scende sotto la larghezza
+   del contenuto, e il piatto della lista (un SVG largo 2128 px con due piatti)
+   allargava l'anteprima oltre la finestra, che poi non si adattava piu'. */
+.griglia{display:grid;grid-template-columns:392px minmax(0,1fr);height:calc(100vh - 53px)}
+@media (max-width:900px){.griglia{grid-template-columns:minmax(0,1fr);height:auto}
   #pannello{border-right:none;border-bottom:1px solid var(--linea)}}
 
 #pannello{overflow-y:auto;border-right:1px solid var(--linea);background:var(--fondo);
@@ -192,7 +195,7 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
    materiale, quindi in admin diventa chiaro come il resto dell'app invece
    di restare un buco nero (--vuoto, letto anche da studio.js). */
 #anteprima{position:relative;display:flex;flex-direction:column;background:var(--vuoto);min-height:420px}
-#tela{flex:1;display:grid;place-items:center;overflow:hidden;position:relative;
+#tela{flex:1;display:grid;grid-template:minmax(0,1fr)/minmax(0,1fr);place-items:center;overflow:hidden;position:relative;
   cursor:grab;touch-action:none;background:var(--vuoto)}
 #tela.trascina{cursor:grabbing}
 #palco{will-change:transform;transform-origin:center center}
@@ -309,6 +312,33 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
 .vocecolore .sceltaslot{margin-left:auto}
 .vocecolore .sceltaslot button{width:22px;height:20px;font-size:10px}
 .vocecolore .sceltaslot + .incassa{margin-left:8px}
+
+/* --------------------------- tratti sottili --------------------------- */
+/* L'avviso si apre con un tocco e sotto mostra i rimedi: e' l'unico posto
+   da cui si accende la correzione. */
+.msg.apribile{cursor:pointer}
+.msg.apribile:hover{border-color:rgba(255,46,136,.7)}
+.msg .freccia{white-space:nowrap;font-weight:600;color:var(--magenta-forte);text-decoration:underline;
+  text-underline-offset:2px}
+.rimedi{display:grid;gap:6px;margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,46,136,.25);cursor:default}
+.rimedi label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.msg button.link{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--accento);
+  text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.msg.avviso button.link{color:var(--magenta-forte)}
+.rimedi input[type=number]{width:72px;margin:0 4px;padding:3px 6px;font-size:12.5px}
+.rimedi .nota{margin:-3px 0 4px 2px}
+
+/* ---------------------------- lista di nomi ---------------------------- */
+#lista{width:100%;min-height:86px;resize:vertical;font:600 14px/1.35 var(--display)}
+#statoLista{display:grid;gap:8px;margin:4px 0 10px}
+#statoLista:empty{display:none}
+.elencolista{display:grid;gap:3px;max-height:220px;overflow:auto;border:1px solid var(--linea);
+  border-radius:8px;padding:6px 8px;background:var(--superficie)}
+.vocelista{display:flex;gap:10px;align-items:baseline;font-size:12px;font-variant-numeric:tabular-nums}
+.vocelista b{font-weight:600;color:var(--testo);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vocelista span{margin-left:auto;color:var(--tenue);white-space:nowrap;font-size:11px}
+.vocelista.attento span{color:var(--magenta-forte)}
+.vocelista.male b{color:var(--magenta)}
 </style>
 </head>
 <body>
@@ -338,6 +368,29 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
           <option value="sinistra">a sinistra</option>
           <option value="destra">a destra</option>
         </select></div>
+    </section>
+
+    <!-- Tanti nomi in un .3mf solo, tutti con le impostazioni di questa
+         pagina e le lettere della stessa grandezza: la misura vale per il
+         piu' largo. Le misure dei piatti sono quelle dei costruttori. -->
+    <section data-solo="testo">
+      <h2>Lista di nomi</h2>
+      <div class="riga piena"><textarea id="lista" rows="4"
+        placeholder="Un nome per riga. Per un nome su due righe: Anna|Rossi"></textarea></div>
+      <div class="riga"><label for="piatto">Piatto</label>
+        <select id="piatto">
+          <option value="256x256">256 × 256 · Bambu X1, P1, A1 · Elegoo CC2</option>
+          <option value="180x180">180 × 180 · Bambu A1 mini</option>
+          <option value="220x220">220 × 220 · Ender 3</option>
+          <option value="250x210">250 × 210 · Prusa MK4</option>
+          <option value="350x320">350 × 320 · Bambu H2D</option>
+        </select></div>
+      <div class="riga"><label for="spazioLista">Spazio fra i pezzi</label>
+        <input type="number" id="spazioLista" value="5" min="1" max="30" step="1"><span class="unita">mm</span></div>
+      <div class="riga piena"><button type="button" id="preparaLista" class="azione secondaria">Prepara la lista</button></div>
+      <div id="statoLista"></div>
+      <div class="nota">Tutti i nomi prendono carattere, bordo, asola, spessori e bobine di questa pagina.
+        La misura vale per il nome più largo: gli altri hanno le lettere della stessa grandezza.</div>
     </section>
 
     <section data-solo="testo">
@@ -8709,11 +8762,16 @@ function sorgenteTesto(cfg, tolleranza) {
   /* Spaziatura e interlinea sono in mm ma la composizione avviene in unita'
      font: le due cose si inseguono, quindi si itera sui soli riquadri (calcolo
      leggero, nessuna curva appiattita). */
-  let mmPerUnita = 20 / upm, imp = null;
+  let mmPerUnita = cfg.scala > 0 ? cfg.scala : 20 / upm, imp = null;
   for (let i = 0; i < 8; i++) {
     const righe = righeDaTesto(font, cfg, cfg.spaziatura / (upm * mmPerUnita));
     if (!righe.length) return { errore: 'Scrivi qualcosa nella casella del testo.' };
     imp = impila(righe, cfg, cfg.interlinea / mmPerUnita);
+    /* La lista di nomi impone la scala, uguale per tutti, invece di adattare
+       ogni nome alla misura: con la misura «Bo» verrebbe enorme e
+       «Massimiliano» minuscolo. La scala la decide il nome piu' largo
+       (scalaTesto, qui sotto). */
+    if (cfg.scala > 0) break;
     const utile = (cfg.dimensione - 2 * cfg.bordo) /
                   (cfg.adattaA === 'larghezza' ? imp.w : imp.h);
     if (!isFinite(utile) || utile <= 0)
@@ -8742,6 +8800,28 @@ function sorgenteTesto(cfg, tolleranza) {
   return { gruppi: [{ nome: 'scritta', colore: null,
                       riempimenti: [{ pezzi, regola: 'nonzero' }], tracce: [] }],
            x0: 0, y0: 0, w: imp.w, h: imp.h, mmPerUnita, mancanti, avvisi: [] };
+}
+
+/* La scala (millimetri per unita' del font) a cui il nome sta nella misura
+   chiesta. Senza appiattire le curve: costa pochi millisecondi, e per una
+   lista di nomi serve sapere chi e' il piu' largo prima di costruirli. */
+function scalaTesto(cfg) {
+  const c = Object.assign({}, cfg, { scala: 0 });
+  const font = prendiFont(c.fontId);
+  if (!font) return 0;
+  const upm = font.unitsPerEm;
+  let mmPerUnita = 20 / upm;
+  for (let i = 0; i < 8; i++) {
+    const righe = righeDaTesto(font, c, c.spaziatura / (upm * mmPerUnita));
+    if (!righe.length) return 0;
+    const imp = impila(righe, c, c.interlinea / mmPerUnita);
+    const utile = (c.dimensione - 2 * c.bordo) / (c.adattaA === 'larghezza' ? imp.w : imp.h);
+    if (!isFinite(utile) || utile <= 0) return 0;
+    const fatto = Math.abs(utile - mmPerUnita) < 1e-7 * utile;
+    mmPerUnita = utile;
+    if (fatto) break;
+  }
+  return mmPerUnita;
 }
 
 function sorgenteLogo(cfg) {
@@ -8914,6 +8994,15 @@ function costruisciDentro(cfg, opz) {
     if (!gruppi.length) return { errore: 'Il ritocco è troppo forte: il disegno sparisce.' };
   }
 
+  /* 3b. I tratti piu' sottili dello spessore minimo, ingrossati solo li'
+         (lo chiede lo studio con la spunta che compare dall'avviso). Prima
+         della base, perche' la base segua il disegno ingrossato. */
+  let ingrossati = 0;
+  if (cfg.ingrossa && cfg.minSpessore > 0) {
+    const r = ingrossaSottili(gruppi, cfg.minSpessore);
+    gruppi = r.gruppi; ingrossati = r.area;
+  }
+
   let pTutto = percorsi(unisci([].concat(...gruppi.map(g => g.paths))));
 
   /* 4. Base. Con 'nessuna' non se ne fa affatto: e' il caso della stampa su
@@ -9065,6 +9154,10 @@ function costruisciDentro(cfg, opz) {
 
   return {
     W, H, pezziBase, sottile, scarto, asola, pTutto,
+    /* Solo con la correzione accesa: quanti mm quadri ha aggiunto, e lo
+       spostamento della tela, che serve a disegnare le zone sottili. */
+    ...(cfg.ingrossa ? { ingrossati: Math.round(ingrossati * 100) / 100 } : {}),
+    tela: { x: tx, y: ty },
     mancanti: src.mancanti, avvisi: src.avvisi,
     dBase: senzaBase ? '' : dati(pBase, tx, ty),
     /* Lo slicer centra ogni pezzo sul proprio ingombro: se il centro di una parte
@@ -9121,6 +9214,129 @@ function controllaSpessore(pTutto, minMM) {
   return perso > FRAZIONE_SOTTILE ? 'parziale' : null;
 }
 
+/* Le zone sottili: quello che l'apertura di raggio r toglie, meno quello
+   che sta a ridosso del CORPO del disegno, cioe' di cio' che all'apertura
+   sopravvive: li' stanno le punte degli spigoli delle parti spesse, che
+   l'apertura arrotonda e che non sono tratti sottili. La punta di un angolo
+   di θ dista dal corpo r·(1/sin(θ/2) − 1): con PUNTA = 0,5 si scartano gli
+   angoli da 84° in su, retti compresi (0,41 r). Quelle piu' acute le
+   giudica tratti(), qui sotto. */
+const PUNTA = 0.5;
+function apertura(paths, rho) {
+  return percorsi(interseca(dilata(dilata(paths, -rho), rho), paths));
+}
+function vicinoAlCorpo(corpo, r) {
+  return corpo.length ? dilata(corpo, PUNTA * r) : [];
+}
+function zone(paths, corpo, vicino) {
+  const perso = percorsi(sottrai(paths, corpo));
+  return vicino.length ? percorsi(sottrai(perso, vicino)) : perso;
+}
+
+/* Per l'interfaccia: le zone piu' sottili di minMM, nelle coordinate della
+   tela del pezzo, come «d» di un percorso SVG. */
+function zoneSottili(g, minMM) {
+  if (!(minMM > 0) || !g.pTutto) return '';
+  const r = minMM / 2;
+  const corpo = apertura(g.pTutto, r);
+  return dati(zone(g.pTutto, corpo, vicinoAlCorpo(corpo, r)), g.tela.x, g.tela.y);
+}
+
+/* Delle zone sottili si tengono solo i TRATTI, che vanno ingrossati; le
+   punte degli spigoli no. Ingrossata, la punta di un angolo acuto di una
+   lettera spessa diventava un bottoncino tondo attaccato allo spigolo
+   (LobsterTwo, «Elisabetta» a 50 mm chiedendo 0,7 mm: uno in fondo a quasi
+   ogni asta). Un pezzo di zona e' un tratto se e' lungo almeno LUNGO·r (il
+   lato lungo del suo riquadro), oppure se si allontana dal corpo del
+   disegno piu' di LONTANO·r. La punta di un angolo di θ ne dista
+   r·(1/sin(θ/2) − 1): con 2,5 r si tengono solo le punte sotto i 33°, che
+   sottili lo sono davvero. Servono tutti e due: col solo «lungo» le code e
+   le sbarrette attaccate a una lettera spessa, tolta la parte a ridosso del
+   corpo, restano corte e sottili (Kaushan, «Martina» a 0,7 mm); col solo
+   «lontano» i filetti fra due lettere non si allontanano da nessuna delle
+   due (Courgette, «Federica» a 0,7 mm, non ingrossava piu' niente). Misure
+   in prova/spessori/misura.js, scritte e due soglie, 20 casi. */
+const LONTANO = 2.5, LUNGO = 4, TOCCO = PUNTA + 0.1;
+function tratti(zone, corpo, tutto, r) {
+  if (!zone.length || !corpo.length) return zone;
+  const lontani = percorsi(sottrai(zone, dilata(corpo, LONTANO * r)));
+  /* Dove ogni pezzo tocca il corpo: le zone ne stanno staccate di PUNTA·r,
+     quindi si allargano appena di piu' e si guarda cosa coprono. */
+  const tocchi = soloEsterni(interseca(dilata(zone, TOCCO * r), corpo));
+  const dentro = (pezzi, p) => pezzi.some(q => CL.Clipper.PointInPolygon(q[0], p) !== 0);
+  return soloEsterni(unisci(zone)).filter(p => {
+    const b = riquadro([p]);
+    if (Math.max(b.w, b.h) >= LUNGO * r || dentro(lontani, p)) return true;
+    return ponte(p, tocchi, tutto, r);
+  });
+}
+
+/* Un PONTE: un pezzo sottile che tiene insieme due parti spesse, come il
+   collo fra l'asta e il braccio della «r» di Kaushan a 40 mm. E' corto
+   (0,99 mm: LUNGO·r a 0,5 mm fa 1,00) e non si allontana da nessuna delle
+   due, quindi gli altri criteri lo lasciavano sottile, e nello slicer la
+   «r» usciva bucata. Tocca il corpo in due punti; ma due punti li tocca
+   anche la punta che sta in una tacca, fra due lobi della stessa lettera
+   (il piede delle aste di LobsterTwo, che diventava un bottoncino). La
+   differenza: tolto il pezzo, i due lobi si ritrovano li' attorno, l'asta e
+   il braccio della «r» no. Si guarda entro PONTE·r dal pezzo. */
+const PONTE = 3;
+function ponte(p, tocchi, tutto, r) {
+  const largo = dilata([p], TOCCO * r);
+  const suoi = tocchi.filter(t => largo.some(l => CL.Clipper.PointInPolygon(t[0], l) !== 0));
+  if (suoi.length < 2) return false;
+  /* Il pezzo si toglie allargato di un decimo di r: i suoi fianchi stanno
+     esattamente sui bordi del disegno, e togliendolo cosi' com'e' restavano
+     due fili di spessore nullo lungo i bordi, che per Clipper tenevano
+     ancora unite asta e braccio della «r». */
+  const attorno = soloEsterni(albero(CL.ClipType.ctDifference,
+    percorsi(interseca(tutto, dilata([p], PONTE * r))), dilata([p], 0.1 * r)));
+  const di = (t) => attorno.findIndex(a => CL.Clipper.PointInPolygon(t[0], a) !== 0);
+  return new Set(suoi.map(di)).size >= 2;
+}
+
+/* Ingrossa i tratti piu' sottili di minMM, e solo quelli: i tratti
+   sottili si dilatano di minMM/2 e si aggiungono al disegno. Un tratto largo
+   w diventa largo w + minMM, quindi un po' piu' del minimo: si e' provato a
+   dilatare per gradi, quanto basta a ogni larghezza (4 livelli), e costava
+   il triplo per lo stesso risultato, con meno casi risolti, perche' i tratti
+   arrivavano proprio al limite e l'arrotondamento li rifaceva sottili. Le
+   aree aggiunte, misurate: da 0 a 8% del disegno.
+
+   Il materiale nuovo va solo nel vuoto: si toglie tutto il disegno, quindi
+   un tratto stretto fra due colori di un logo non ruba niente ai vicini, e
+   un colore non invade l'altro (fra i colori, quello che viene prima si
+   tiene l'aggiunta, come per le sovrapposizioni del punto 2).
+
+   Costa: da 0,3 a 3 s in piu' della costruzione (misurato in Node sul
+   Mac), per questo lo studio la fa a parte, dopo il disegno normale. */
+function ingrossaSottili(gruppi, minMM) {
+  const r = minMM / 2;
+  const tutto = percorsi(unisci([].concat(...gruppi.map(g => g.paths))));
+  const corpo = apertura(tutto, r);
+  const sottili = tratti(zone(tutto, corpo, vicinoAlCorpo(corpo, r)), corpo, tutto, r);
+  if (!sottili.length) return { gruppi, area: 0 };
+  /* Il colore si unisce alla sua zona dilatata, che lo sovrappone, e solo
+     dopo si tolgono gli altri colori. Fatto al contrario (prima il nuovo
+     materiale ritagliato fuori dal disegno, poi incollato al colore) i due
+     hanno i lati in comune, esattamente coincidenti, e Clipper su quelli si
+     pianta: sul logo di Marediroma tracciato, a 45 mm, un'unione sola
+     costava 9,7 s. Fra i colori, quello che viene prima si tiene l'aggiunta. */
+  let preso = [], area = 0;
+  const fuori = gruppi.map((g, i) => {
+    const suo = percorsi(interseca(sottili, g.paths));
+    if (!suo.length) return g;
+    let paths = percorsi(unisci(g.paths.concat(dilata(suo, r))));
+    const altri = [].concat(...gruppi.filter((h, j) => j !== i).map(h => h.paths), preso);
+    if (altri.length) paths = percorsi(sottrai(paths, altri));
+    preso = preso.concat(paths);
+    // i colori non si sovrappongono: l'aggiunta e' la differenza delle aree
+    area += areaTotale(paths) - areaTotale(g.paths);
+    return { ...g, paths };
+  });
+  return { gruppi: fuori, area };
+}
+
 /* ====================== generazione dei file SVG ====================== */
 
 /* Due quadratini agli angoli opposti della tela. Non servono a stampare: danno
@@ -9162,7 +9378,7 @@ function fileSVG(g, quali, crocini) {
    domani serve altro lo si aggiunge qui, in modo che le dipendenze restino
    visibili in un colpo d'occhio. */
 return {
-  costruisci, fileSVG, controllaSpessore,
+  costruisci, fileSVG, controllaSpessore, zoneSottili, scalaTesto,
   registraFontFace,
   usaFontUtente(f) { fontCaricato = f; },
   fontUtente() { return fontCaricato; }
@@ -9180,6 +9396,8 @@ return {
    sono piccoli (una decina di kB l'uno) e la compressione avrebbe voluto
    codice asincrono e una via di scampo per i browser che non ce l'hanno.
    Meglio un archivio un po' piu' grosso e un codice che non puo' sbagliare.
+   L'eccezione e' compresso(), per il .3mf della lista di nomi, che senza
+   arriva a decine di mega: quella via di scampo li' c'e'.
    ===================================================================== */
 window.Zip = (function () {
 'use strict';
@@ -9221,8 +9439,11 @@ function pezziDi(voci, quando) {
 
   for (const v of voci) {
     const nome = enc.encode(v.nome);
-    const dati = typeof v.testo === 'string' ? enc.encode(v.testo) : v.testo;
-    const crc = crc32(dati);
+    /* Una voce gia' compressa (compresso, qui sotto) porta i suoi byte
+       compressi, e a parte il codice di controllo e la misura dell'originale. */
+    const dati = v.compressi || (typeof v.testo === 'string' ? enc.encode(v.testo) : v.testo);
+    const crc = v.compressi ? v.crc : crc32(dati);
+    const metodo = v.compressi ? 8 : 0, intero = v.compressi ? v.originale : dati.length;
 
     // intestazione che precede i dati del singolo file
     const locale = new Uint8Array(30 + nome.length);
@@ -9230,12 +9451,12 @@ function pezziDi(voci, quando) {
     l.setUint32(0, 0x04034b50, true);   // firma
     l.setUint16(4, 20, true);           // versione minima per aprirlo
     l.setUint16(6, 0x0800, true);       // i nomi sono in UTF-8
-    l.setUint16(8, 0, true);            // nessuna compressione
+    l.setUint16(8, metodo, true);       // 0 nessuna compressione, 8 deflate
     l.setUint16(10, t.ora, true);
     l.setUint16(12, t.data, true);
     l.setUint32(14, crc, true);
     l.setUint32(18, dati.length, true);
-    l.setUint32(22, dati.length, true);
+    l.setUint32(22, intero, true);
     l.setUint16(26, nome.length, true);
     locale.set(nome, 30);
     pezzi.push(locale, dati);
@@ -9247,12 +9468,12 @@ function pezziDi(voci, quando) {
     d.setUint16(4, 20, true);
     d.setUint16(6, 20, true);
     d.setUint16(8, 0x0800, true);
-    d.setUint16(10, 0, true);
+    d.setUint16(10, metodo, true);
     d.setUint16(12, t.ora, true);
     d.setUint16(14, t.data, true);
     d.setUint32(16, crc, true);
     d.setUint32(20, dati.length, true);
-    d.setUint32(24, dati.length, true);
+    d.setUint32(24, intero, true);
     d.setUint16(28, nome.length, true);
     d.setUint32(42, offset, true);      // dove comincia, dentro l'archivio
     c.set(nome, 46);
@@ -9293,6 +9514,29 @@ function byte(voci, quando) {
   return out;
 }
 
+/* Gli stessi byte di byte(), ma con i file compressi (deflate), da chi lo
+   sa fare. Serve al .3mf della lista di nomi: e' XML, trenta nomi sono una
+   trentina di mega, e compressi vanno circa a un sesto («Anna» passa da 961
+   a 172 kB). Bambu Studio, Orca ed Elegoo Slicer l'hanno letto (1 ottobre
+   2026). Lo fa il browser (CompressionStream), senza librerie: ce l'hanno
+   Chrome dalla 103 e Safari dalla 16.4. Dove manca, l'archivio esce come
+   sempre, senza compressione: piu' grosso ma giusto. */
+async function compresso(voci, quando) {
+  if (typeof CompressionStream !== 'function') return byte(voci, quando);
+  const enc = new TextEncoder();
+  const pronte = [];
+  for (const v of voci) {
+    const dati = typeof v.testo === 'string' ? enc.encode(v.testo) : v.testo;
+    let compressi;
+    try {
+      const flusso = new Blob([dati]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+      compressi = new Uint8Array(await new Response(flusso).arrayBuffer());
+    } catch (e) { return byte(voci, quando); }   // «deflate-raw» non c'e': si resta a prima
+    pronte.push({ nome: v.nome, compressi, crc: crc32(dati), originale: dati.length });
+  }
+  return byte(pronte, quando);
+}
+
 /* Una riga di CSV con il punto e virgola, che e' quello che si aspetta il
    foglio di calcolo in italiano. */
 function rigaCSV(campi) {
@@ -9302,7 +9546,7 @@ function rigaCSV(campi) {
   }).join(';');
 }
 
-return { crea, byte, rigaCSV, crc32 };
+return { crea, byte, compresso, rigaCSV, crc32 };
 })();
 
 /* =====================================================================
@@ -9919,6 +10163,81 @@ function pezzi3D(g, opz) {
   }).filter(p => p.maglia.triangoli.length);
 }
 
+/* ============================ la lista di nomi ============================ */
+
+/* Tanti pezzi in un 3MF solo, ognuno al suo posto sul piatto. elenco:
+   [{ g, opz, nome, x, y }], con x e y l'angolo in basso a sinistra del pezzo
+   in millimetri del piatto (la Y dello slicer cresce verso il fondo).
+
+   Ogni nome e' un oggetto a se' fatto di componenti, come il pezzo singolo
+   (base e scritta incollate, lo slicer le sposta insieme), e nel piano
+   entrano tutti: provato con Bambu Studio, Orca ed Elegoo Slicer l'1 ottobre
+   2026, ognuno resta dov'e' scritto e prende i suoi slot. Lo slicer pero'
+   sposta in blocco un 3MF che non e' un suo progetto, col centro dell'ingombro
+   sul centro del piatto: e' per questo che quando i nomi non ci stanno su un
+   piatto solo si preme «Disponi», che apre da se' i piatti che servono.
+
+   Le voci dell'archivio sono quelle del pezzo singolo; chi le riceve le
+   comprime (Zip.compresso): XML di trenta nomi sono una trentina di mega. */
+function vociLista(elenco, nome, quando) {
+  const conPezzi = elenco.map(e => Object.assign({}, e, { pezzi: pezzi3D(e.g, e.opz) }))
+    .filter(e => e.pezzi.length);
+  if (!conPezzi.length) return null;
+  const tutti = [].concat(...conPezzi.map(e => e.pezzi));
+  const r = ['<?xml version="1.0" encoding="UTF-8"?>\n',
+    '<model unit="millimeter" xml:lang="it-IT" xmlns="' + CORE + '">',
+    '<metadata name="Application">Portachiavi 3D</metadata>',
+    '<metadata name="Title">' + esc(nome) + '</metadata>',
+    '<resources>', '<basematerials id="1">'];
+  for (const p of tutti)
+    r.push('<base name="' + esc(p.nome) + '" displaycolor="' + colore3MF(p.colore) + '"/>');
+  r.push('</basematerials>');
+  /* Prima tutte le maglie, poi gli insiemi che le richiamano: un componente
+     puo' rimandare solo a un oggetto gia' dichiarato. */
+  const ids = new Map();
+  tutti.forEach((p, i) => {
+    ids.set(p, i + 2);
+    r.push('<object id="' + (i + 2) + '" type="model" name="' + esc(p.nome) +
+           '" pid="1" pindex="' + i + '">');
+    xmlMaglia(p.maglia, r);
+    r.push('</object>');
+  });
+  const id = (p) => ids.get(p);
+  let prossimo = tutti.length + 2;
+  const voci = [];
+  for (const e of conPezzi) {
+    const fuori = e.pezzi.filter(p => p.separato), dentro = e.pezzi.filter(p => !p.separato);
+    const posto = { x: e.x, y: e.y };
+    if (dentro.length > 1) voci.push(Object.assign({ id: prossimo++, nome: e.nome, parti: dentro }, posto));
+    else if (dentro.length) voci.push(Object.assign({ id: id(dentro[0]), nome: e.nome, slot: dentro[0].slot }, posto));
+    fuori.forEach(p => voci.push(Object.assign({ id: id(p), nome: e.nome + ' ' + p.nome, slot: p.slot }, posto)));
+  }
+  for (const v of voci) {
+    if (!v.parti) continue;
+    r.push('<object id="' + v.id + '" type="model" name="' + esc(v.nome) + '"><components>');
+    v.parti.forEach(p => r.push('<component objectid="' + id(p) + '"/>'));
+    r.push('</components></object>');
+  }
+  r.push('</resources><build>');
+  voci.forEach(v => r.push('<item objectid="' + v.id + '" transform="1 0 0 0 1 0 0 0 1 ' +
+                           num(v.x) + ' ' + num(v.y) + ' 0"/>'));
+  r.push('</build></model>\n');
+  const slot = impostazioniSlot(voci, id);
+  return [{ nome: '[Content_Types].xml', testo: TIPI },
+          { nome: '_rels/.rels', testo: RELAZIONI },
+          { nome: '3D/3dmodel.model', testo: r.join('') }]
+    .concat(slot ? [{ nome: 'Metadata/model_settings.config', testo: slot }] : []);
+}
+
+/* Quanto occupa sul piatto un pezzo: il riquadro dei suoi triangoli, che
+   con la sede comprende anche la scritta appoggiata di fianco. */
+function ingombro(g, opz) {
+  let w = 0, h = 0;
+  for (const p of pezzi3D(g, opz || {}))
+    for (const v of p.maglia.vertici) { if (v[0] > w) w = v[0]; if (v[1] > h) h = v[1]; }
+  return { w, h };
+}
+
 /* Le tre voci che stanno dentro un 3MF. */
 function voci3MF(g, opz) {
   const o = opz || {};
@@ -9947,7 +10266,7 @@ function file3MF(g, opz) {
   return b ? new Blob([b], { type: 'model/3mf' }) : null;
 }
 
-return { file3MF, byte3MF, pezzi3D, sedeDi, ALTEZZA_BASE, ALTEZZA_PARTE };
+return { file3MF, byte3MF, pezzi3D, sedeDi, vociLista, ingombro, ALTEZZA_BASE, ALTEZZA_PARTE };
 })();
 
 /* =====================================================================
@@ -11065,7 +11384,7 @@ radice.Traccia = { traccia, tavolozza, PREDEFINITE, SOMIGLIANZA, FUSIONE };
 (function () {
 'use strict';
 
-const { costruisci, fileSVG, controllaSpessore, registraFontFace } = window.Motore;
+const { costruisci, fileSVG, controllaSpessore, zoneSottili, registraFontFace } = window.Motore;
 const SO = window.Solido;
 const $ = (s) => document.querySelector(s);
 
@@ -11073,7 +11392,16 @@ const $ = (s) => document.querySelector(s);
 
 const stato = { g: null, cfg: null, logo: null, immagine: null, svgTracciato: null,
                 vista: { z: 1, x: 0, y: 0 }, adattato: false,
-                tre: false, vista3d: null, chiave3d: '' };
+                tre: false, vista3d: null, chiave3d: '',
+                /* I tratti sottili: il riquadro sotto l'avviso aperto, le zone
+                   mostrate sull'anteprima, la correzione accesa. Non sono
+                   impostazioni da ricordare: valgono per il pezzo che si ha
+                   davanti, e non stanno fra i campi del pannello. */
+                sottili: { aperto: false, mostra: false, ingrossa: false },
+                /* La lista di nomi preparata: i pezzi, dove stanno sul piatto, e
+                   se l'anteprima mostra il piatto invece del nome singolo.
+                   Qualunque ritocco al pannello la butta: va rifatta. */
+                lista: null };
 
 /* 1 mm sullo schermo: un pixel CSS vale 1/96 di pollice, quindi a zoom 1 il
    pezzo si vede piu' o meno a grandezza naturale (dipende dal monitor). */
@@ -11141,6 +11469,9 @@ function leggiCfg() {
     minSpessore: v('minSpessore'),
     /* Le bobine: il colore di ogni slot e lo slot di base e scritta. Anche
        questi il motore non li guarda; servono all'anteprima e al .3mf. */
+    lista: $('#lista').value,
+    piatto: $('#piatto').value,
+    spazioLista: v('spazioLista'),
     slot1: $('#slot1').value, slot2: $('#slot2').value,
     slot3: $('#slot3').value, slot4: $('#slot4').value,
     slotBase: +$('#slotBase').value || 1,
@@ -11167,12 +11498,15 @@ function slotParti(g, cfg) {
 const coloriParti = (g, cfg) => slotParti(g, cfg).map(coloreSlot);
 
 function disegna(g) {
+  // col piatto della lista in vista, il nome singolo aspetta dietro
+  if (stato.lista && stato.lista.inVista) return;
   // l'SVG e' grande quanto il pezzo vero: cosi' zoom 1 = grandezza naturale
   $('#palco').innerHTML =
     `<svg width="${(g.W * PXMM).toFixed(2)}" height="${(g.H * PXMM).toFixed(2)}" ` +
     `viewBox="0 0 ${g.W} ${g.H}">` +
     `<path fill="${coloreSlot(stato.cfg.slotBase)}" fill-rule="evenodd" d="${g.dBase}"/>` +
     coloriParti(g, stato.cfg).map((c, i) => `<path fill="${c}" fill-rule="evenodd" d="${g.parti[i].d}"/>`).join('') +
+    (stato.sottili.mostra && g.zone ? `<path fill="#FF2E88" fill-rule="evenodd" d="${g.zone}"/>` : '') +
     `</svg>`;
   $('#vuoto').textContent = '';
   if (stato.adattato) applicaVista();
@@ -11189,7 +11523,7 @@ function applicaVista() {
    riquadro misura zero e l'adattamento verrebbe sbagliato. Ci riprova il
    ResizeObserver appena l'anteprima prende le sue dimensioni vere. */
 function adattaVista() {
-  const g = stato.g;
+  const g = stato.lista && stato.lista.inVista ? stato.lista.tela : stato.g;
   if (!g) return false;
   const t = $('#tela').getBoundingClientRect();
   if (t.width < 40 || t.height < 40) return false;
@@ -11338,6 +11672,7 @@ function messaggio(cls, testo) { return `<div class="msg ${cls}">${testo}</div>`
 
 function aggiorna() {
   disegnaSlot();      // anche un logo appena letto ha le sue righe da riempire
+  if (stato.lista) buttaLista();      // anche a meta': il ciclo se ne accorge e si ferma
   const cfg = leggiCfg();
   stato.cfg = cfg;
   let g;
@@ -11359,13 +11694,52 @@ function aggiorna() {
   costruisciScaricamenti(g);
   scriviInfo(g, cfg);
 
-  // il controllo degli spessori costa: si fa quando l'utente si ferma
+  /* Il controllo degli spessori costa, e la correzione ancora di piu' (da
+     0,3 a 3 s): si fanno quando l'utente si ferma. Intanto si vede il pezzo
+     senza correzione, e i bottoni per scaricare la fanno da se' se non e'
+     ancora arrivata (rifinisci). */
   clearTimeout(timerSpessore);
-  timerSpessore = setTimeout(() => {
-    if (stato.g !== g) return;
+  timerSpessore = setTimeout(() => { if (stato.g === g) pronto(); }, 260);
+}
+
+/* Il pezzo rifinito e tutto quello che lo mostra rimesso in pari: la
+   chiamano il timer qui sopra e i bottoni per scaricare, che non possono
+   aspettarlo. Se la correzione ha sostituito il pezzo, anteprima, bottoni e
+   3D si rifanno; l'avviso si riscrive comunque. */
+function pronto() {
+  const g = stato.g, cfg = stato.cfg;
+  if (!g) return null;
+  if (g.rifinito) return g;
+  clearTimeout(timerSpessore);
+  rifinisci(g, cfg);
+  if (stato.g !== g) {
+    disegna(stato.g); costruisciScaricamenti(stato.g);
+    if (stato.tre) programma3D();
+  } else if (stato.sottili.mostra) disegna(g);
+  scriviInfo(stato.g, cfg);
+  return stato.g;
+}
+
+/* Quello che aspetta la pausa: il giudizio sugli spessori, le zone sottili
+   da mostrare, e con la correzione accesa il pezzo ricostruito con i tratti
+   ingrossati, che prende il posto di quello di prima. Se c'e' gia', non fa
+   niente: la chiamano anche i bottoni per scaricare. */
+function rifinisci(g, cfg) {
+  if (g.rifinito) return g;
+  if (stato.sottili.ingrossa && !g.ingrossato) {
     g.sottile = controllaSpessore(g.pTutto, cfg.minSpessore);
-    scriviInfo(g, cfg);
-  }, 260);
+    /* Si ingrossa solo se c'e' qualcosa da ingrossare: un pezzo gia' a posto
+       resta quello, e costa niente. */
+    if (g.sottile === 'parziale') {
+      let gi;
+      try { gi = costruisci(Object.assign({}, cfg, { ingrossa: true })); } catch (e) { gi = null; }
+      if (gi && !gi.errore) { gi.ingrossato = true; stato.g = g = gi; }
+    }
+  }
+  if (g.sottile === undefined) g.sottile = controllaSpessore(g.pTutto, cfg.minSpessore);
+  if (stato.sottili.mostra && g.zone === undefined) g.zone = zoneSottili(g, cfg.minSpessore);
+  g.rifinito = true;
+  return g;
 }
 
 function scriviInfo(g, cfg) {
@@ -11380,13 +11754,7 @@ function scriviInfo(g, cfg) {
           `diversa da «segue il contorno», che tiene insieme anche gli elementi lontani.`
         : `aumenta lo <b>spessore bordo</b>, usa una <b>spaziatura lettere negativa</b> ` +
           `oppure scegli un corsivo con le lettere già attaccate.`));
-  if (g.sottile === 'tutta')
-    html += messaggio('avviso', `Tutto il disegno è più sottile di ${cfg.minSpessore} mm: ingrandiscilo.`);
-  else if (g.sottile === 'parziale')
-    html += messaggio('avviso', `Alcuni tratti sono più sottili di <b>${cfg.minSpessore} mm</b>: ` +
-      `rischiano di venire male in stampa. Ingrandisci il pezzo` +
-      (cfg.modo === 'logo' ? ` oppure ingrossa il disegno con «ritocca» fra le impostazioni avanzate.`
-                           : ` o scegli un font più grasso.`));
+  html += avvisoSottili(g, cfg);
   const suBase = parteSuBase(g, cfg);
   if (suBase.length)
     html += messaggio('avviso', `${suBase.map(i => `<b>${etichettaParte(g, i)}</b>`).join(' e ')} ` +
@@ -11413,6 +11781,63 @@ function scriviInfo(g, cfg) {
       fuori.map((p, i) => `<b>${etichettaParte(g, g.parti.indexOf(p))}</b> di X ${segno(p.scarto.x)}, ` +
                           `Y ${segno(-p.scarto.y)} mm`).join(' e ') + `.`);
   $('#info').innerHTML = html;
+}
+
+/* L'avviso dei tratti sottili, e sotto di lui, solo se lo si apre, cosa
+   si puo' fare: vederli sull'anteprima e ingrossarli. La correzione non sta
+   nel pannello ma qui, dove si scopre di averne bisogno: chi non ha l'avviso
+   non ha niente da correggere. Accesa, al posto dell'avviso resta una riga
+   che lo dice e la spegne, senno' non si saprebbe piu' come tornare indietro. */
+function avvisoSottili(g, cfg) {
+  const z = stato.sottili, mm = String(cfg.minSpessore).replace('.', ',');
+  /* Con la correzione accesa, finche' non arriva: su un logo grande ci vuole
+     qualche secondo (Marediroma tracciato a 45 mm: 8,7 s) e senza una riga
+     sembrerebbe che la spunta non abbia fatto niente. */
+  if (z.ingrossa && !g.rifinito)
+    return messaggio('ok', `Controllo gli spessori e ingrosso i tratti sotto ${mm} mm…`);
+  /* Il primo rimedio e' «Ritocca disegno», lo stesso campo delle
+     impostazioni avanzate (questo lo specchia): ingrossa tutto il disegno
+     della stessa misura, quindi il profilo non si deforma, ed e' quello che
+     si usava fino a ieri. La correzione dei soli tratti sottili viene dopo,
+     per quando ingrossare tutto non va bene. */
+  const ritocco = String(cfg.ritocco || 0).replace('.', ',');
+  const sottoAvviso = () =>
+    `<div class="rimedi">` +
+    `<label><b>ritocca il disegno</b> di ` +
+    `<input type="number" data-sottili="ritocco" value="${cfg.ritocco || 0}" min="-2" max="2" step="0.05"> mm</label>` +
+    `<span class="nota">ingrossa (+) tutto il disegno della stessa misura: il profilo non si ` +
+    `deforma. È lo stesso campo di «Ritocca disegno» fra le impostazioni avanzate.</span>` +
+    `<label><input type="checkbox" data-sottili="ingrossa"${z.ingrossa ? ' checked' : ''}> ` +
+    `<b>ingrossa solo i tratti sottili</b> fino a ${mm} mm</label>` +
+    `<span class="nota">aggiunge materiale solo attorno ai tratti sottili, nel vuoto: il resto ` +
+    `del disegno non cambia. Le punte corte degli spigoli restano come sono.</span>` +
+    `<label><input type="checkbox" data-sottili="mostra"${z.mostra ? ' checked' : ''}> ` +
+    `mostra dove sono, in magenta sull'anteprima</label></div>`;
+  if (g.ingrossato) {
+    const ancora = g.sottile === 'parziale' || g.sottile === 'tutta';
+    return messaggio(ancora ? 'avviso' : 'ok',
+      `Tratti sottili <b>ingrossati</b> fino a ${mm} mm (+${String(g.ingrossati).replace('.', ',')} mm²)` +
+      (ancora ? `, ma qualche punto resta sotto: ingrandisci il pezzo` +
+                (cfg.modo === 'logo' ? ' o usa «ritocca»' : ' o scegli un font più grasso') + '.' : '.') +
+      ` <button type="button" class="link" data-sottili="spegni">annulla</button>` +
+      (z.aperto ? sottoAvviso() : ` <button type="button" class="link" data-sottili="apri">altro</button>`));
+  }
+  if (g.sottile === 'tutta')
+    return messaggio('avviso', `Tutto il disegno è più sottile di ${mm} mm: ingrandiscilo.`);
+  /* Il ritocco ha sistemato tutto: l'avviso se ne va, ma col riquadro
+     aperto resta una riga che lo dice, col campo, senno' il campo sparirebbe
+     proprio mentre lo si sta usando. */
+  if (g.sottile !== 'parziale')
+    return z.aperto && Math.abs(cfg.ritocco) > 1e-6 && g.sottile === null
+      ? messaggio('ok', `Disegno <b>ritoccato</b> di ${ritocco} mm: i tratti sono a posto.` + sottoAvviso())
+      : '';
+  return `<div class="msg avviso apribile${z.aperto ? ' aperto' : ''}" data-sottili="apri" role="button" tabindex="0">` +
+    `Alcuni tratti sono più sottili di <b>${mm} mm</b>: rischiano di venire male in stampa. ` +
+    `Ingrandisci il pezzo` +
+    (cfg.modo === 'logo' ? ` oppure ingrossa il disegno con «ritocca» fra le impostazioni avanzate.`
+                         : ` o scegli un font più grasso.`) +
+    ` <span class="freccia">${z.aperto ? 'chiudi' : 'cosa posso fare'}</span>` +
+    (z.aperto ? sottoAvviso() : '') + `</div>`;
 }
 
 /* Le parti che stanno sullo slot della base: in stampa avrebbero il suo
@@ -11496,13 +11921,13 @@ function salvaFile(blob, nome) {
 }
 
 function scarica(quali, suffisso) {
-  if (!stato.g) return;
+  if (!pronto()) return;
   salvaFile(new Blob([fileSVG(stato.g, quali, stato.cfg.crocini)],
                      { type: 'image/svg+xml' }), nomeFile(suffisso));
 }
 
 function scaricaSolido() {
-  if (!stato.g) return;
+  if (!pronto()) return;
   const b = SO.file3MF(stato.g, opzioniSolido(stato.g, stato.cfg));
   if (b) salvaFile(b, nomeBase() + '.3mf');
 }
@@ -11549,6 +11974,191 @@ function costruisciScaricamenti(g) {
   $('#scaricamenti').innerHTML = html;
 }
 
+/* ---- la lista di nomi ---- */
+
+/* I nomi della casella, uno per riga; «|» va a capo dentro un nome. */
+const nomiDellaLista = (testo) => testo.split('\n').map(r => r.trim()).filter(Boolean)
+  .map(r => r.split('|').map(x => x.trim()).filter(Boolean).join('\n')).filter(Boolean);
+
+/* I pezzi in fila sul piatto, nell'ordine della lista: a righe, da sinistra
+   a destra e dall'alto in basso, e quando il piatto e' pieno se ne comincia
+   un altro. Coordinate col'origine in alto a sinistra, come l'anteprima.
+   Ogni piatto poi si centra. Lo spazio fra i pezzi vale anche dai bordi. */
+function disponi(voci, L, P, spazio) {
+  let piatto = 0, x = spazio, y = spazio, riga = 0;
+  for (const v of voci) {
+    if (x > spazio && x + v.w > L - spazio) { x = spazio; y += riga + spazio; riga = 0; }
+    if (y > spazio && y + v.h > P - spazio) { piatto++; x = spazio; y = spazio; riga = 0; }
+    Object.assign(v, { piatto, x, y });
+    x += v.w + spazio; riga = Math.max(riga, v.h);
+  }
+  const quanti = voci.length ? piatto + 1 : 0;
+  for (let k = 0; k < quanti; k++) {
+    const su = voci.filter(v => v.piatto === k);
+    const x1 = Math.max(...su.map(v => v.x + v.w)), y1 = Math.max(...su.map(v => v.y + v.h));
+    const dx = (L - (x1 - spazio)) / 2 - spazio, dy = (P - (y1 - spazio)) / 2 - spazio;
+    su.forEach(v => { v.x += dx; v.y += dy; });
+  }
+  return quanti;
+}
+
+/* Fra un piatto e l'altro, nell'anteprima e nel file: un quinto del lato,
+   come li mette Bambu Studio (visto nella tappa 0, 1 ottobre 2026). Nel file
+   conta poco: lo slicer sposta tutto in blocco e si preme «Disponi». */
+const PASSO_PIATTI = 1.2;
+
+/* Costruisce tutti i nomi, uno alla volta lasciando respirare la pagina, e
+   li dispone. Tutti alla stessa scala, quella del piu' largo: la misura
+   chiesta vale per lui, e gli altri hanno lettere della stessa grandezza. */
+async function preparaLista() {
+  const cfg = leggiCfg();
+  const nomi = nomiDellaLista(cfg.lista);
+  const box = $('#statoLista');
+  if (!nomi.length) { box.innerHTML = messaggio('avviso', 'Scrivi almeno un nome, uno per riga.'); return; }
+  const scale = nomi.map(n => Motore.scalaTesto(Object.assign({}, cfg, { testo: n })));
+  const buone = scale.filter(k => k > 0);
+  if (!buone.length) { box.innerHTML = messaggio('errore', 'Nessun nome si può scrivere con queste misure.'); return; }
+  const scala = Math.min(...buone), largo = nomi[scale.indexOf(scala)];
+  const [L, P] = cfg.piatto.split('x').map(Number);
+  const lista = stato.lista = { inCorso: true, voci: [], cfg, L, P, largo };
+  $('#preparaLista').disabled = true;
+  const t0 = performance.now();
+  for (let i = 0; i < nomi.length; i++) {
+    if (stato.lista !== lista) return;            // buttata da un ritocco
+    box.innerHTML = `<div class="nota">Preparo ${i + 1} di ${nomi.length}: <b>${esc(nomi[i].replace('\n', ' '))}</b>…</div>`;
+    await new Promise(r => setTimeout(r, 0));
+    lista.voci.push(costruisciNome(nomi[i], scale[i] > 0 ? scala : 0, cfg));
+  }
+  if (stato.lista !== lista) return;
+  lista.inCorso = false;
+  lista.ms = Math.round(performance.now() - t0);
+  const buoni = lista.voci.filter(v => v.g);
+  lista.piatti = disponi(buoni, L, P, cfg.spazioLista || 5);
+  lista.tela = { W: lista.piatti * L + (lista.piatti - 1) * (PASSO_PIATTI - 1) * L, H: P };
+  $('#preparaLista').disabled = false;
+  mostraPiatto(true);
+  scriviStatoLista();
+}
+
+/* Un nome della lista: il pezzo alla scala comune, controllato, ingrossato
+   se la correzione dei tratti sottili e' accesa, e quanto occupa. */
+function costruisciNome(nome, scala, cfg) {
+  const voce = { nome, avvisi: [] };
+  if (!(scala > 0)) { voce.errore = 'non si può scrivere con queste misure'; return voce; }
+  const c = Object.assign({}, cfg, { testo: nome, scala });
+  let g;
+  try { g = costruisci(c); } catch (e) { g = { errore: e.message }; }
+  if (g.errore) { voce.errore = g.errore; return voce; }
+  if (stato.sottili.ingrossa && g.sottile === 'parziale') {
+    let gi;
+    try { gi = costruisci(Object.assign({}, c, { ingrossa: true })); } catch (e) { gi = null; }
+    if (gi && !gi.errore) { gi.ingrossato = true; g = gi; }
+  }
+  if (g.ingrossato) voce.avvisi.push('tratti sottili ingrossati');
+  if (g.sottile === 'parziale') voce.avvisi.push('tratti sotto ' + cfg.minSpessore + ' mm');
+  if (g.sottile === 'tutta') voce.avvisi.push('tutto sotto ' + cfg.minSpessore + ' mm');
+  if (g.mancanti.length) voce.avvisi.push('il carattere non ha ' + g.mancanti.join(' '));
+  if (g.pezziBase > 1) voce.avvisi.push('base in ' + g.pezziBase + ' pezzi');
+  voce.g = g;
+  voce.opz = {
+    nome, altezzaBase: cfg.spesBase, altezzaParte: cfg.spesParte,
+    sede: profonditaSede(cfg), gioco: cfg.gioco, incassa: g.parti.map(() => true),
+    coloreBase: coloreSlot(cfg.slotBase), coloriParti: g.parti.map(() => coloreSlot(cfg.slotTesto)),
+    slotBase: cfg.slotBase, slotParti: g.parti.map(() => cfg.slotTesto),
+    nomiParti: g.parti.map(() => 'scritta')
+  };
+  const ing = SO.ingombro(g, voce.opz);
+  voce.w = ing.w; voce.h = ing.h;
+  return voce;
+}
+
+/* L'anteprima mostra il piatto (o i piatti) invece del nome singolo. */
+function mostraPiatto(si) {
+  const lista = stato.lista;
+  if (!lista || lista.inCorso) return;
+  lista.inVista = si;
+  if (!si) {
+    if (stato.g) { stato.adattato = false; disegna(stato.g); scriviInfo(stato.g, stato.cfg); }
+    return;
+  }
+  if (stato.tre) accendi3D(false);
+  const { L, P } = lista, cfg = lista.cfg, T = lista.tela;
+  let svg = '';
+  for (let k = 0; k < lista.piatti; k++)
+    svg += `<rect x="${k * L * PASSO_PIATTI}" y="0" width="${L}" height="${P}" rx="4" ` +
+           `fill="rgba(128,128,128,.14)" stroke="rgba(128,128,128,.55)" stroke-width="0.6"/>`;
+  for (const v of lista.voci.filter(v => v.g)) {
+    const g = v.g, dx = v.piatto * L * PASSO_PIATTI + v.x, dy = v.y;
+    svg += `<g transform="translate(${dx.toFixed(3)} ${dy.toFixed(3)})">` +
+      `<path fill="${coloreSlot(cfg.slotBase)}" fill-rule="evenodd" d="${g.dBase}"/>` +
+      g.parti.map(p => `<path fill="${coloreSlot(cfg.slotTesto)}" fill-rule="evenodd" d="${p.d}"/>`).join('') +
+      `</g>`;
+  }
+  $('#palco').innerHTML = `<svg width="${(T.W * PXMM).toFixed(2)}" height="${(T.H * PXMM).toFixed(2)}" ` +
+    `viewBox="0 0 ${T.W} ${T.H}">${svg}</svg>`;
+  $('#vuoto').textContent = '';
+  stato.adattato = adattaVista();
+  // sotto l'anteprima, al posto degli avvisi del nome singolo
+  const n = lista.piatti;
+  $('#info').innerHTML = messaggio(n > 1 ? 'avviso' : 'ok', n > 1
+    ? `Il piatto della lista: <b>${n} piatti</b> da ${L} × ${P}. Nello slicer premi <b>«Disponi»</b> (tasto A).`
+    : `Il piatto della lista: tutto su un piatto da ${L} × ${P}.`);
+}
+
+function scriviStatoLista() {
+  const lista = stato.lista;
+  if (!lista || lista.inCorso) return;
+  const buoni = lista.voci.filter(v => v.g), mm = (n) => String(Math.round(n * 10) / 10).replace('.', ',');
+  const quanti = buoni.length, n = lista.piatti;
+  let html = messaggio(n > 1 ? 'avviso' : 'ok',
+    `<b>${quanti} ${quanti === 1 ? 'nome' : 'nomi'}</b>, lettere alla scala di «${esc(lista.largo.replace('\n', ' '))}», ` +
+    `il più largo · ` + (n <= 1
+      ? `stanno tutti su un piatto da ${lista.L} × ${lista.P}: nello slicer si aprono già disposti.`
+      : `servono <b>${n} piatti</b> da ${lista.L} × ${lista.P}. Lo slicer apre il file tutto su un ` +
+        `piatto: premi <b>«Disponi»</b> (tasto A) e li divide da sé.`));
+  html += `<div class="elencolista">` + lista.voci.map(v => {
+    const nome = esc(v.nome.replace('\n', ' · '));
+    if (v.errore) return `<div class="vocelista male"><b>${nome}</b><span>${esc(v.errore)}</span></div>`;
+    return `<div class="vocelista${v.avvisi.length ? ' attento' : ''}"><b>${nome}</b>` +
+      `<span>${mm(v.g.W)} × ${mm(v.g.H)} mm${v.avvisi.length ? ' · ' + esc(v.avvisi.join(' · ')) : ''}</span></div>`;
+  }).join('') + `</div>`;
+  if (quanti)
+    html += `<button type="button" class="azione" data-lista="scarica">Scarica la lista (.3mf)</button>` +
+      `<div class="riga piena" style="margin-top:6px"><button type="button" class="azione secondaria minuscolo" ` +
+      `data-lista="vista">${lista.inVista ? 'Torna al nome singolo' : 'Mostra il piatto'}</button></div>`;
+  $('#statoLista').innerHTML = html;
+}
+
+/* Il file: un 3MF solo con tutti i nomi, ognuno col suo posto e i suoi
+   slot, compresso. Nel 3MF la Y cresce verso il fondo del piatto, nella
+   disposizione verso il basso: si gira. */
+async function scaricaLista() {
+  const b = await byteLista(new Date());
+  if (b) salvaFile(new Blob([b.byte], { type: 'model/3mf' }), `lista_${b.quanti}_nomi.3mf`);
+}
+
+async function byteLista(quando) {
+  const lista = stato.lista;
+  if (!lista || lista.inCorso) return null;
+  const elenco = lista.voci.filter(v => v.g).map(v => ({
+    g: v.g, opz: v.opz, nome: v.nome.replace('\n', ' '),
+    x: v.piatto * lista.L * PASSO_PIATTI + v.x, y: lista.P - (v.y + v.h) }));
+  const voci = SO.vociLista(elenco, 'Lista di ' + elenco.length + ' nomi', quando);
+  if (!voci) return null;
+  return { byte: await window.Zip.compresso(voci, quando), quanti: elenco.length };
+}
+
+/* Un ritocco qualunque al pannello: la lista preparata non vale piu'. */
+function buttaLista() {
+  const eraInVista = stato.lista && stato.lista.inVista;
+  stato.lista = null;
+  $('#preparaLista').disabled = false;
+  $('#statoLista').innerHTML = '';
+  if (eraInVista) stato.adattato = false;
+}
+
+const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
 /* ---- tutti i file in un archivio solo ---- */
 
 /* Una cartella col nome del pezzo, e dentro tutto quello che serve: la base, un
@@ -11558,14 +12168,12 @@ function costruisciScaricamenti(g) {
    I disegni sono gli stessi identici dei bottoni singoli — stessa geometria,
    stessi nomi — quindi le due strade restano intercambiabili. */
 function esportaPacchetto() {
-  if (!stato.g) return;
+  if (!pronto()) return;
   const g = stato.g, cfg = stato.cfg, quando = new Date();
 
   /* Il controllo degli spessori arriva con 260 ms di ritardo: se si esporta
      prima che sia arrivato lo si fa adesso, senno' il promemoria tace proprio
      sull'unica cosa che non si vede guardando i file. */
-  if (g.sottile === undefined) g.sottile = controllaSpessore(g.pTutto, cfg.minSpessore);
-
   const base = nomeBase(), dentro = base + '/';
   /* Il solido non ha numero e finisce in cima all'elenco della cartella: e' la
      strada corta, e chi apre la cartella deve vederla per prima. */
@@ -11700,6 +12308,9 @@ function leggimi(g, cfg, quando) {
   }
 
   const avvisi = avvisiTesto(g, cfg);
+  if (g.ingrossato)
+    avvisi.push('I tratti più sottili di ' + cfg.minSpessore + ' mm sono stati ingrossati ' +
+                '(+' + g.ingrossati + ' mm²): il disegno non è più identico all’originale.');
   parteSuBase(g, cfg).forEach(i => avvisi.push(etichettaParte(g, i) +
     ' è sullo stesso slot della base: in stampa non si vedrebbe.'));
   if (avvisi.length) {
@@ -11978,7 +12589,7 @@ function leggiPredefiniti() {
     if (!el.id) continue;
     if (el.type === 'file') continue;      // non si possono riempire da codice
     if (el.type === 'range') continue;     // sono lo specchio del campo numerico
-    if (el.id === 'testo') continue;       // e' lavoro dell'utente, non un'impostazione
+    if (el.id === 'testo' || el.id === 'lista') continue;   // lavoro dell'utente, non impostazioni
     PREDEFINITI[el.id] = el.type === 'checkbox' ? el.checked : el.value;
   }
 }
@@ -12053,6 +12664,14 @@ function avvia() {
 
   $('#ripristina').addEventListener('click', () => { tornaAiPredefiniti(); rigenera(); });
 
+  $('#preparaLista').addEventListener('click', () => { preparaLista(); });
+  $('#statoLista').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-lista]');
+    if (!b) return;
+    if (b.dataset.lista === 'scarica') scaricaLista();
+    if (b.dataset.lista === 'vista') { mostraPiatto(!stato.lista.inVista); scriviStatoLista(); }
+  });
+
   $('#scaricamenti').addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b) return;
@@ -12096,6 +12715,44 @@ function avvia() {
   });
 
   $('#coloriLogo').addEventListener('change', rigenera);
+  /* L'avviso dei tratti sottili e il suo riquadro stanno in #info, che si
+     riscrive a ogni giro: si ascolta lui. Aprire e chiudere non ricostruisce
+     niente; mostrare le zone le calcola se mancano; la correzione rifa' il
+     pezzo, quindi passa da aggiorna. */
+  $('#info').addEventListener('click', (e) => {
+    // dentro il riquadro si spuntano caselle: non deve aprire e chiudere
+    if (e.target.closest('.rimedi')) return;
+    const el = e.target.closest('[data-sottili]');
+    if (!el) return;
+    const z = stato.sottili;
+    if (el.dataset.sottili === 'apri') z.aperto = !z.aperto;
+    if (el.dataset.sottili === 'spegni') { z.ingrossa = false; z.aperto = false; aggiorna(); return; }
+    if (stato.g) scriviInfo(stato.g, stato.cfg);
+  });
+  $('#info').addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.apribile')) { e.preventDefault(); e.target.click(); }
+  });
+  $('#info').addEventListener('change', (e) => {
+    const el = e.target.closest('input[data-sottili]');
+    if (!el) return;
+    const z = stato.sottili;
+    /* Il ritocco va nel campo vero, e da li' tutto come se lo si fosse
+       cambiato fra le impostazioni avanzate (salvato compreso). Si ascolta
+       solo «change», non «input»: #info si riscrive a ogni giro, e a ogni
+       tasto il campo verrebbe rifatto sotto le dita. */
+    if (el.dataset.sottili === 'ritocco') {
+      const vero = $('#ritocco');
+      vero.value = el.value;
+      vero.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
+    z[el.dataset.sottili] = el.checked;
+    if (el.dataset.sottili === 'ingrossa') { aggiorna(); return; }
+    const g = stato.g;
+    if (!g) return;
+    if (z.mostra && g.zone === undefined) g.zone = zoneSottili(g, stato.cfg.minSpessore);
+    disegna(g); scriviInfo(g, stato.cfg);
+  });
   /* Un tocco su uno slot: per base e scritta va nel campo nascosto, per un
      colore del logo nella sua riga. I campi nascosti non mandano «change»,
      quindi si rigenera da qui. */
@@ -12148,7 +12805,8 @@ document.addEventListener('DOMContentLoaded', avvia);
 /* Aggancio per diagnostica e uso da script:
    __pk3d.fileSVG(__pk3d.costruisci({modo:'testo', testo:'Ciao', ...}), 'base') */
 window.__pk3d = { costruisci, fileSVG, leggiCfg, esportaPacchetto, leggimi, caricaImmagine, caricaLogo,
-                  scaricaSolido, opzioniSolido, tornaAiPredefiniti, FONT_DATA, stato };
+                  scaricaSolido, opzioniSolido, tornaAiPredefiniti, FONT_DATA, stato,
+                  preparaLista, scaricaLista, byteLista, disponi };
 })();
 </script>
 </body>
