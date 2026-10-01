@@ -8591,8 +8591,16 @@ function sorgenteLogo(cfg) {
   if (!L) return { errore: 'Carica un file SVG con il logo.' };
   const scelti = L.gruppi.filter((g, i) => cfg.coloriAttivi[i] !== false);
   if (!scelti.length) return { errore: 'Tieni acceso almeno un colore del logo.' };
+  /* La misura e' quella di quello che si stampa: l'ingombro dei soli colori
+     accesi, non del file intero. Prima valeva il file, e un colore spento che
+     faceva da sfondo si portava via la scala: il monogramma MOV3DO (quadrato
+     nero spento, «MOV3DO» e «3» accesi) a 60 mm di larghezza con bordo 5
+     usciva con un disegno di 27,39 mm invece di 50. Con tutti i colori
+     accesi l'ingombro e' lo stesso di logo.js (gli stessi punti, tracce
+     senza la loro larghezza), quindi niente cambia. */
+  const b = scelti.length === L.gruppi.length ? L : ingombroGruppi(scelti);
   const mmPerUnita = (cfg.dimensione - 2 * cfg.bordo) /
-                     (cfg.adattaA === 'larghezza' ? L.w : L.h);
+                     (cfg.adattaA === 'larghezza' ? b.w : b.h);
   if (!isFinite(mmPerUnita) || mmPerUnita <= 0)
     return { errore: 'La misura è troppo piccola per il bordo scelto. Aumenta la dimensione o riduci il bordo.' };
   const gruppi = cfg.unisciColori
@@ -8601,8 +8609,22 @@ function sorgenteLogo(cfg) {
          tracce: [].concat(...scelti.map(g => g.tracce)) }]
     : scelti.map((g, i) => ({ nome: 'parte' + (i + 1), colore: g.colore,
                               riempimenti: g.riempimenti, tracce: g.tracce }));
-  return { gruppi, x0: L.x0, y0: L.y0, w: L.w, h: L.h, mmPerUnita,
+  return { gruppi, x0: b.x0, y0: b.y0, w: b.w, h: b.h, mmPerUnita,
            mancanti: [], avvisi: L.avvisi };
+}
+
+/* L'ingombro di alcuni gruppi del logo, in unita' del viewBox, misurato come
+   lo misura logo.js per il file intero. */
+function ingombroGruppi(gruppi) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const guarda = (p) => { for (const q of p) {
+    if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0];
+    if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1]; } };
+  for (const g of gruppi) {
+    for (const r of g.riempimenti) r.pezzi.forEach(guarda);
+    for (const t of g.tracce) guarda(t.punti);
+  }
+  return { x0, y0, w: x1 - x0, h: y1 - y0 };
 }
 
 /* Un gruppo (riempimenti con la loro fill-rule + tracce da ingrossare)
