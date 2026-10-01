@@ -339,6 +339,20 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
 .vocelista span{margin-left:auto;color:var(--tenue);white-space:nowrap;font-size:11px}
 .vocelista.attento span{color:var(--magenta-forte)}
 .vocelista.male b{color:var(--magenta)}
+
+/* ------------------------- un nome / una lista ------------------------- */
+.schede.piccole{margin:-8px 0 18px}
+.schede.piccole .scheda{font-size:12px;padding:7px 6px}
+
+/* -------------------- elenco dei caratteri compatto -------------------- */
+/* Chiuso si vede solo il carattere scelto, con una freccia che dice che si
+   apre; aperto e' l'elenco di sempre, coi campioni. */
+#listaFont.chiuso{max-height:none;overflow:visible;padding-right:0}
+#listaFont.chiuso .gruppofont,
+#listaFont.chiuso .vocefont:not([aria-checked=true]){display:none}
+#listaFont.chiuso .vocefont[aria-checked=true] .etichetta::after{content:'  ▾';letter-spacing:0}
+#listaFont:not(.chiuso){border:1px solid var(--linea-2);border-radius:var(--raggio);padding:6px;
+  box-shadow:0 12px 30px rgba(0,0,0,.25)}
 </style>
 </head>
 <body>
@@ -359,21 +373,24 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
       <button class="scheda" data-modo="logo"  role="tab" aria-selected="false">Da un logo SVG</button>
     </div>
 
-    <section data-solo="testo">
+    <!-- Un nome o una lista: ognuno mostra e usa solo i suoi campi. In modo
+         lista il testo singolo non conta, e l'anteprima mostra il nome piu'
+         largo della lista finche' non la si prepara. -->
+    <div class="schede piccole" id="sceltaQuanti" data-solo="testo" role="tablist">
+      <button class="scheda" type="button" data-quanti="singolo" role="tab" aria-selected="true">Un nome</button>
+      <button class="scheda" type="button" data-quanti="lista" role="tab" aria-selected="false">Una lista di nomi</button>
+    </div>
+    <input type="hidden" id="quanti" value="singolo">
+
+    <section data-solo="testo" data-quanti="singolo">
       <h2>Testo</h2>
       <div class="riga piena"><textarea id="testo" rows="2" placeholder="Scrivi qui il nome…">Viola</textarea></div>
-      <div class="riga"><label for="allineamento">Righe allineate</label>
-        <select id="allineamento">
-          <option value="centro">al centro</option>
-          <option value="sinistra">a sinistra</option>
-          <option value="destra">a destra</option>
-        </select></div>
     </section>
 
     <!-- Tanti nomi in un .3mf solo, tutti con le impostazioni di questa
          pagina e le lettere della stessa grandezza: la misura vale per il
          piu' largo. Le misure dei piatti sono quelle dei costruttori. -->
-    <section data-solo="testo">
+    <section data-solo="testo" data-quanti="lista">
       <h2>Lista di nomi</h2>
       <div class="riga piena"><textarea id="lista" rows="4"
         placeholder="Un nome per riga. Per un nome su due righe: Anna|Rossi"></textarea></div>
@@ -395,8 +412,15 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
 
     <section data-solo="testo">
       <h2>Carattere</h2>
-      <div id="listaFont" role="radiogroup" data-scelto=""></div>
-      <div class="riga" style="margin-top:9px">
+      <!-- compatto: si vede solo quello scelto, un tocco apre l'elenco -->
+      <div id="listaFont" class="chiuso" role="radiogroup" data-scelto=""></div>
+      <div class="riga" style="margin-top:9px"><label for="allineamento">Righe allineate</label>
+        <select id="allineamento">
+          <option value="centro">al centro</option>
+          <option value="sinistra">a sinistra</option>
+          <option value="destra">a destra</option>
+        </select></div>
+      <div class="riga">
         <label for="fileFont">Font tuo</label>
         <input type="file" id="fileFont" accept=".ttf,.otf,.woff">
       </div>
@@ -11424,15 +11448,35 @@ let timerSpessore = null;
 const SLOT = 4;
 const coloreSlot = (n) => { const el = $('#slot' + n); return el ? el.value : '#888888'; };
 
-const modoAttuale = () => document.querySelector('.scheda[aria-selected=true]').dataset.modo;
+const modoAttuale = () => document.querySelector('.scheda[data-modo][aria-selected=true]').dataset.modo;
 
 function leggiCfg() {
+  const c = leggiCampi();
+  /* In modo lista il testo singolo non conta: il pezzo che si guarda (e il
+     3D, e gli avvisi) e' il nome piu' largo della lista, quello che decide la
+     scala di tutti. Senza nomi resta vuoto, e aggiorna lo dice. */
+  if (c.modo === 'testo' && c.quanti === 'lista') {
+    const nomi = nomiDellaLista(c.lista);
+    let piccola = Infinity;
+    c.testo = '';
+    for (const n of nomi) {
+      const k = Motore.scalaTesto(Object.assign({}, c, { testo: n }));
+      if (k > 0 && k < piccola) { piccola = k; c.testo = n; }
+    }
+  }
+  return c;
+}
+
+const inLista = (cfg) => cfg.modo === 'testo' && cfg.quanti === 'lista';
+
+function leggiCampi() {
   const v = (id) => parseFloat($('#' + id).value) || 0;
   const attivi = [...document.querySelectorAll('#coloriLogo input[data-i]')].map(c => c.checked);
   const incassi = [...document.querySelectorAll('#coloriLogo input[data-incassa]')].map(c => c.checked);
   const slotColori = [...document.querySelectorAll('#coloriLogo .vocecolore')].map(v => +v.dataset.slot);
   return {
     modo: modoAttuale(),
+    quanti: $('#quanti').value,
     testo: $('#testo').value,
     fontId: $('#listaFont').dataset.scelto,
     allineamento: $('#allineamento').value,
@@ -11676,8 +11720,14 @@ function aggiorna() {
   const cfg = leggiCfg();
   stato.cfg = cfg;
   let g;
-  try { g = costruisci(cfg, { saltaSpessore: true }); }
-  catch (e) { g = { errore: 'Errore nel calcolo: ' + e.message }; }
+  if (inLista(cfg) && !cfg.testo)
+    g = { errore: nomiDellaLista(cfg.lista).length
+      ? 'Nessun nome della lista si può scrivere con queste misure.'
+      : 'Scrivi i nomi della lista, uno per riga.' };
+  else {
+    try { g = costruisci(cfg, { saltaSpessore: true }); }
+    catch (e) { g = { errore: 'Errore nel calcolo: ' + e.message }; }
+  }
 
   if (g.errore) {
     stato.g = null;
@@ -11743,7 +11793,12 @@ function rifinisci(g, cfg) {
 }
 
 function scriviInfo(g, cfg) {
-  let html =
+  if (stato.lista && stato.lista.inVista) return;     // sotto il piatto c'e' il suo riassunto
+  let html = inLista(cfg)
+    ? messaggio('ok', `Anteprima: <b>«${esc(cfg.testo.replace('\n', ' '))}»</b>, il nome più largo della lista. ` +
+        `Gli altri avranno le lettere della stessa grandezza: prepara la lista per vedere il piatto.`)
+    : '';
+  html +=
     `<div class="dato"><span>pezzo</span> <b>${g.W} × ${g.H} mm</b></div>` +
     `<div class="dato"><span>disegno</span> <b>${g.larghezzaTesto} × ${g.altezzaTesto} mm</b></div>` +
     `<div class="dato"><span>bordo</span> <b>${cfg.bordo} mm</b></div>`;
@@ -11939,6 +11994,15 @@ function etichettaParte(g, i) {
 
 function costruisciScaricamenti(g) {
   const cfg = stato.cfg || {};
+  /* In modo lista i file del nome singolo non hanno senso: si scarica la
+     lista, preparata nel suo riquadro. */
+  if (inLista(cfg)) {
+    $('#scaricamenti').innerHTML = stato.lista && !stato.lista.inCorso
+      ? `<button class="azione" data-lista="scarica">Scarica la lista (.3mf)</button>`
+      : `<div class="nota" style="margin:4px 0 10px">Prepara la lista (qui sopra, in «Lista di nomi») ` +
+        `e poi scaricala da qui o da lì: un .3mf solo con tutti i nomi.</div>`;
+    return;
+  }
   const alto = (n) => String(Math.round(n * 100) / 100).replace('.', ',');
   const incassa = incassaParti(g, cfg), nIncasso = incassa.filter(Boolean).length;
   const sede = nIncasso ? profonditaSede(cfg) : 0;
@@ -12038,6 +12102,7 @@ async function preparaLista() {
   $('#preparaLista').disabled = false;
   mostraPiatto(true);
   scriviStatoLista();
+  if (stato.g) costruisciScaricamenti(stato.g);
 }
 
 /* Un nome della lista: il pezzo alla scala comune, controllato, ingrossato
@@ -12155,6 +12220,20 @@ function buttaLista() {
   $('#preparaLista').disabled = false;
   $('#statoLista').innerHTML = '';
   if (eraInVista) stato.adattato = false;
+}
+
+/* Quali campi si vedono: quelli del modo (testo o logo) e, nel testo,
+   quelli di un nome o di una lista. */
+function visibili() {
+  const modo = modoAttuale(), quanti = $('#quanti').value;
+  document.querySelectorAll('[data-solo],[data-quanti]').forEach(el => {
+    if (el.closest('#sceltaQuanti') && el.matches('button')) return;   // i due tasti stessi
+    const via = (el.dataset.solo && el.dataset.solo !== modo) ||
+                (el.dataset.quanti && (modo !== 'testo' || el.dataset.quanti !== quanti));
+    el.classList.toggle('nascosto', !!via);
+  });
+  document.querySelectorAll('#sceltaQuanti [data-quanti]').forEach(b =>
+    b.setAttribute('aria-selected', String(b.dataset.quanti === quanti)));
 }
 
 const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -12521,24 +12600,45 @@ function costruisciListaFont() {
       `<button type="button" role="radio" class="vocefont" data-id="${id}" aria-checked="false">` +
       `<span class="campione" style="font-family:'pk-${id}'"></span>` +
       `<span class="etichetta">${FONT_DATA[id].nome}</span></button>`).join('')).join('');
+  /* Compatto: chiuso si vede solo il carattere scelto, e un tocco apre
+     l'elenco con tutti i campioni; scegliere lo richiude. Si chiude anche
+     toccando fuori o con Esc, senza cambiare niente. */
   lista.addEventListener('click', (e) => {
     const b = e.target.closest('.vocefont');
     if (!b) return;
+    if (lista.classList.contains('chiuso')) { apriFont(true); return; }
+    const cambia = b.dataset.id !== lista.dataset.scelto;
+    apriFont(false);
     scegliFont(b.dataset.id);
-    aggiorna(); salva();
+    if (cambia) { aggiorna(); salva(); }
   });
+  document.addEventListener('click', (e) => {
+    if (!lista.classList.contains('chiuso') && !e.target.closest('#listaFont')) apriFont(false);
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') apriFont(false); });
+}
+
+function apriFont(aperto) {
+  const lista = $('#listaFont');
+  lista.classList.toggle('chiuso', !aperto);
+  const scelta = lista.querySelector('.vocefont[aria-checked=true]');
+  if (aperto && scelta) scelta.scrollIntoView({ block: 'nearest' });
 }
 
 function scegliFont(id) {
   $('#listaFont').dataset.scelto = id;
   document.querySelectorAll('.vocefont').forEach(b =>
     b.setAttribute('aria-checked', String(b.dataset.id === id)));
+  // da chiuso l'elenco non si scorre: si vede solo questo
   const scelta = document.querySelector(`.vocefont[data-id="${id}"]`);
-  if (scelta) scelta.scrollIntoView({ block: 'nearest' });
+  if (scelta && !$('#listaFont').classList.contains('chiuso')) scelta.scrollIntoView({ block: 'nearest' });
 }
 
 function aggiornaCampioni() {
-  const t = ($('#testo').value.split('\n')[0] || 'Abc').slice(0, 14);
+  // in modo lista i campioni scrivono il primo nome della lista, non il testo singolo
+  const fonte = $('#quanti').value === 'lista' && modoAttuale() === 'testo'
+    ? (nomiDellaLista($('#lista').value)[0] || '') : $('#testo').value;
+  const t = (fonte.split('\n')[0] || 'Abc').slice(0, 14);
   document.querySelectorAll('.vocefont .campione').forEach(s => s.textContent = t);
 }
 
@@ -12546,7 +12646,7 @@ function aggiornaCampioni() {
 const CHIAVE = 'portachiavi3d';
 function salva() {
   try {
-    const c = leggiCfg();
+    const c = leggiCampi();      // il testo del campo, non il nome piu' largo della lista
     delete c.logo; delete c.coloriAttivi; delete c.incassaColori; delete c.slotColori;   // il logo non si conserva fra le sessioni
     localStorage.setItem(CHIAVE, JSON.stringify(c));
   } catch (e) {}
@@ -12589,7 +12689,7 @@ function leggiPredefiniti() {
     if (!el.id) continue;
     if (el.type === 'file') continue;      // non si possono riempire da codice
     if (el.type === 'range') continue;     // sono lo specchio del campo numerico
-    if (el.id === 'testo' || el.id === 'lista') continue;   // lavoro dell'utente, non impostazioni
+    if (el.id === 'testo' || el.id === 'lista' || el.id === 'quanti') continue;   // lavoro dell'utente, non impostazioni
     PREDEFINITI[el.id] = el.type === 'checkbox' ? el.checked : el.value;
   }
 }
@@ -12618,10 +12718,9 @@ function allineaSlider() {
 
 /* ---- modalità ---- */
 function scegliModo(modo) {
-  document.querySelectorAll('.scheda').forEach(b =>
+  document.querySelectorAll('.scheda[data-modo]').forEach(b =>
     b.setAttribute('aria-selected', String(b.dataset.modo === modo)));
-  document.querySelectorAll('[data-solo]').forEach(el =>
-    el.classList.toggle('nascosto', el.dataset.solo !== modo));
+  visibili();
 }
 
 /* ---- avvio ---- */
@@ -12649,7 +12748,7 @@ function avvia() {
   $('#pannello').addEventListener('change', rigenera);
   $('#sede').addEventListener('change', mostraIncassi);
 
-  document.querySelectorAll('.scheda').forEach(b =>
+  document.querySelectorAll('.scheda[data-modo]').forEach(b =>
     b.addEventListener('click', () => {
       scegliModo(b.dataset.modo); stato.adattato = false; rigenera();
     }));
@@ -12665,6 +12764,15 @@ function avvia() {
   $('#ripristina').addEventListener('click', () => { tornaAiPredefiniti(); rigenera(); });
 
   $('#preparaLista').addEventListener('click', () => { preparaLista(); });
+  $('#sceltaQuanti').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-quanti]');
+    if (!b || b.dataset.quanti === $('#quanti').value) return;
+    $('#quanti').value = b.dataset.quanti;
+    visibili(); stato.adattato = false; rigenera();
+  });
+  $('#scaricamenti').addEventListener('click', (e) => {
+    if (e.target.closest('[data-lista="scarica"]')) scaricaLista();
+  });
   $('#statoLista').addEventListener('click', (e) => {
     const b = e.target.closest('[data-lista]');
     if (!b) return;
