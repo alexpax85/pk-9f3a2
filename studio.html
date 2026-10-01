@@ -11598,22 +11598,65 @@ function collegaVista() {
     zoomaVerso(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0022)), px, py);
   }, { passive: false });
 
-  let trascino = null;
+  /* Le dita appoggiate, come nel visore 3D: con una si trascina, con due
+     si pizzica, e lo zoom va attorno al punto fra le due dita mentre il loro
+     spostamento sposta il piatto. Prima si seguiva un puntatore solo, e
+     sull'iPad due dita davano scatti invece dello zoom. */
+  const dita = new Map();
+  let prima = null;             // distanza e centro delle due dita al passo prima
   tela.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return;
-    trascino = { x: e.clientX, y: e.clientY };
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
     tela.setPointerCapture(e.pointerId);
+    dita.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    prima = misuraDita();
     tela.classList.add('trascina');
   });
+  /* Distanza e centro delle due dita, appena sono due: aspettando il primo
+     movimento si perdeva il primo passo del pizzico (allargando da 100 a
+     200 px lo zoom arrivava a ×1,905 invece che a ×2). */
+  const misuraDita = () => {
+    if (dita.size < 2) return null;
+    const [a, b] = [...dita.values()];
+    const [cx, cy] = centro({ clientX: (a.x + b.x) / 2, clientY: (a.y + b.y) / 2 });
+    return { dist: Math.hypot(a.x - b.x, a.y - b.y), cx, cy };
+  };
   tela.addEventListener('pointermove', (e) => {
-    if (!trascino) return;
-    stato.vista.x += e.clientX - trascino.x;
-    stato.vista.y += e.clientY - trascino.y;
-    trascino = { x: e.clientX, y: e.clientY };
-    applicaVista();
+    const d = dita.get(e.pointerId);
+    if (!d) return;
+    const dx = e.clientX - d.x, dy = e.clientY - d.y;
+    d.x = e.clientX; d.y = e.clientY;
+    if (dita.size >= 2) {
+      const ora = misuraDita();
+      if (prima && prima.dist > 0) {
+        stato.vista.x += ora.cx - prima.cx; stato.vista.y += ora.cy - prima.cy;
+        zoomaVerso(ora.dist / prima.dist, ora.cx, ora.cy);
+      }
+      prima = ora;
+    } else {
+      stato.vista.x += dx; stato.vista.y += dy;
+      applicaVista();
+    }
   });
   for (const t of ['pointerup', 'pointercancel'])
-    tela.addEventListener(t, () => { trascino = null; tela.classList.remove('trascina'); });
+    tela.addEventListener(t, (e) => {
+      dita.delete(e.pointerId); prima = misuraDita();
+      if (!dita.size) tela.classList.remove('trascina');
+    });
+
+  /* Il pizzico sul trackpad del Mac: Chrome lo manda come rotella col Ctrl
+     (qui sopra), Safari come «gesture», con la scala dall'inizio del gesto.
+     Sull'iPad Safari manda le gesture anche col pizzico delle dita: li' ci
+     pensano gia' i puntatori, e le gesture si lasciano stare. */
+  let scalaGesto = 1;
+  tela.addEventListener('gesturestart', (e) => { e.preventDefault(); scalaGesto = 1; });
+  tela.addEventListener('gesturechange', (e) => {
+    e.preventDefault();
+    if (dita.size >= 2 || !(e.scale > 0)) return;
+    const [px, py] = centro(e);
+    zoomaVerso(e.scale / scalaGesto, px, py);
+    scalaGesto = e.scale;
+  });
+  tela.addEventListener('gestureend', (e) => e.preventDefault());
   tela.addEventListener('dblclick', adattaVista);
 
   document.querySelector('.barrazoom').addEventListener('click', (e) => {
