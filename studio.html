@@ -103,7 +103,25 @@ header{display:flex;align-items:center;gap:14px;height:52px;padding:0 18px;
 
 #pannello{overflow-y:auto;border-right:1px solid var(--linea);background:var(--fondo);
   padding:18px 18px 30px;scrollbar-width:thin;scrollbar-color:var(--linea-2) transparent}
-section{margin-bottom:28px}
+section{margin-bottom:24px}
+
+/* Le sezioni si chiudono toccando il titolo: aperto tutto, il pannello era
+   una colonna lunga cinque schermate. Chiusa, una sezione e' solo il suo
+   titolo, con accanto un riassunto di quello che c'e' dentro (la misura, la
+   bobina...), cosi' non serve aprirla per sapere com'e' impostata. */
+h2 .apri{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;width:100%;cursor:pointer}
+h2 .apri::before{content:"";flex:none;width:5px;height:5px;margin:0 2px 3px 1px;
+  border:solid var(--accento);border-width:0 1.5px 1.5px 0;transform:rotate(45deg);transition:transform .15s}
+h2 .apri:hover{color:var(--testo)}
+h2 .apri:focus-visible{outline:2px solid var(--accento);outline-offset:4px;border-radius:4px}
+h2 .riassunto{display:none;margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  text-transform:none;letter-spacing:0;font-size:11.5px;font-weight:400;color:var(--tenue)}
+h2 .riassunto .pastiglia{width:11px;height:11px;margin:0 0 0 4px;vertical-align:-1px}
+section.chiusa{margin-bottom:10px}
+section.chiusa h2{margin-bottom:0}
+section.chiusa h2 .apri::before{transform:rotate(-45deg);margin:0 3px 0 0}
+section.chiusa h2 .riassunto{display:block}
+section.chiusa > :not(h2){display:none !important}
 .riga{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .riga label{flex:0 0 122px;color:var(--tenue);font-size:12.5px}
 .riga.piena label{flex:none}
@@ -201,6 +219,8 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
 #tela.trascina{cursor:grabbing}
 #palco{will-change:transform;transform-origin:center center}
 #palco svg{display:block;overflow:visible;filter:drop-shadow(0 10px 22px rgba(0,0,0,.45))}
+/* il piatto della lista mentre si rifa': resta quello di prima, velato */
+#palco.vecchio{opacity:.4;transition:opacity .2s}
 #vuoto{position:absolute;color:var(--tenue);font-size:13px;max-width:70%;text-align:center;
   pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 /* trascinando un SVG sopra: la cornice tratteggiata del kit social */
@@ -332,7 +352,7 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
 /* ---------------------------- lista di nomi ---------------------------- */
 #lista{width:100%;min-height:86px;resize:vertical;font:600 14px/1.35 var(--display)}
 #statoLista{display:grid;gap:8px;margin:4px 0 10px}
-#statoLista:empty{display:none}
+#statoLista:empty,#statoLista .avanza:empty{display:none}
 .elencolista{display:grid;gap:3px;max-height:220px;overflow:auto;border:1px solid var(--linea);
   border-radius:8px;padding:6px 8px;background:var(--superficie)}
 .vocelista{display:flex;gap:10px;align-items:baseline;font-size:12px;font-variant-numeric:tabular-nums}
@@ -376,14 +396,14 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
 
     <!-- Un nome o una lista: ognuno mostra e usa solo i suoi campi. In modo
          lista il testo singolo non conta, e l'anteprima mostra il nome piu'
-         largo della lista finche' non la si prepara. -->
+         largo della lista finche' la lista non e' pronta (si prepara da se'). -->
     <div class="schede piccole" id="sceltaQuanti" data-solo="testo" role="tablist">
       <button class="scheda" type="button" data-quanti="singolo" role="tab" aria-selected="true">Un nome</button>
-      <button class="scheda" type="button" data-quanti="lista" role="tab" aria-selected="false">Una lista di nomi</button>
+      <button class="scheda" type="button" data-quanti="lista" role="tab" aria-selected="false">Modalità lista</button>
     </div>
     <input type="hidden" id="quanti" value="singolo">
 
-    <section data-solo="testo" data-quanti="singolo">
+    <section data-sezione="testo" data-solo="testo" data-quanti="singolo">
       <h2>Testo</h2>
       <div class="riga piena"><textarea id="testo" rows="2" placeholder="Scrivi qui il nome…">Viola</textarea></div>
     </section>
@@ -391,7 +411,7 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
     <!-- Tanti nomi in un .3mf solo, tutti con le impostazioni di questa
          pagina e le lettere della stessa grandezza: la misura vale per il
          piu' largo. Le misure dei piatti sono quelle dei costruttori. -->
-    <section data-solo="testo" data-quanti="lista">
+    <section data-sezione="lista" data-solo="testo" data-quanti="lista">
       <h2>Lista di nomi</h2>
       <div class="riga piena"><textarea id="lista" rows="4"
         placeholder="Un nome per riga. Per un nome su due righe: Anna|Rossi"></textarea></div>
@@ -405,13 +425,13 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
         </select></div>
       <div class="riga"><label for="spazioLista">Spazio fra i pezzi</label>
         <input type="number" id="spazioLista" value="5" min="1" max="30" step="1"><span class="unita">mm</span></div>
-      <div class="riga piena"><button type="button" id="preparaLista" class="azione secondaria">Prepara la lista</button></div>
       <div id="statoLista"></div>
-      <div class="nota">Tutti i nomi prendono carattere, bordo, asola, spessori e bobine di questa pagina.
+      <div class="nota">Tutti i nomi prendono carattere, bordo, asola, spessori e bobine di questa pagina,
+        e la lista si rifà da sé a ogni ritocco.
         La misura vale per il nome più largo: gli altri hanno le lettere della stessa grandezza.</div>
     </section>
 
-    <section data-solo="testo">
+    <section data-sezione="carattere" data-solo="testo">
       <h2>Carattere</h2>
       <!-- compatto: si vede solo quello scelto, un tocco apre l'elenco -->
       <div id="listaFont" class="chiuso" role="radiogroup" data-scelto=""></div>
@@ -427,7 +447,7 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
       </div>
     </section>
 
-    <section data-solo="logo">
+    <section data-sezione="logo" data-solo="logo">
       <h2>Logo</h2>
       <div class="riga piena">
         <label for="fileLogo" class="riquadrofile">
@@ -480,7 +500,7 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
       </div>
     </section>
 
-    <section>
+    <section data-sezione="dimensioni">
       <h2>Dimensioni</h2>
       <div class="riga"><label for="adattaA" style="flex:0 0 62px">Misura in</label>
         <select id="adattaA" style="flex:1;min-width:0">
@@ -516,7 +536,7 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
       </div>
     </section>
 
-    <section>
+    <section data-sezione="asola">
       <h2>Asola portachiavi</h2>
       <div class="riga"><label for="asola">Aggiungi asola</label><input type="checkbox" id="asola" checked></div>
       <div id="campiAsola">
@@ -546,7 +566,7 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
          (e ogni colore di un logo) si scelgono per slot: nel .3mf ogni parte
          esce gia' assegnata al suo, e lo slicer la colora con la bobina vera.
          Gli slot scelti stanno in campi nascosti, cosi' li salva salva(). -->
-    <section>
+    <section data-sezione="bobine">
       <h2>Bobine</h2>
       <div class="riga"><label>Colori caricati</label>
         <div id="bobine">
@@ -571,7 +591,7 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
       </div>
     </section>
 
-    <section>
+    <section data-sezione="anteprima">
       <h2>Anteprima e controlli</h2>
       <div class="riga"><label>Sfondo</label>
         <div id="sfondi"></div>
@@ -597,8 +617,10 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
       </div>
     </section>
 
-    <section class="scarica">
-      <h2>Scarica i file</h2>
+    <!-- Le misure del solido stanno a parte dai bottoni per scaricare: si
+         toccano di rado, e chiuse lasciano i bottoni subito sotto mano. -->
+    <section data-sezione="solido">
+      <h2>Solido 3D</h2>
       <div class="riga"><label for="spesBase">Spessore base</label>
         <input type="number" id="spesBase" value="3" min="0.4" max="30" step="0.2"><span class="unita">mm</span></div>
       <div class="riga" style="margin-bottom:10px"><label for="spesParte">Spessore dettaglio</label>
@@ -618,6 +640,10 @@ button.azione.minuscolo{width:auto;flex:none;padding:8px 12px;font-size:12px}
         <input type="number" id="gioco" value="0" min="0" max="1" step="0.05"><span class="unita">mm</span>
         <span class="nota">per lato: quanto la sede è più larga della scritta, da misurare con una prova</span>
       </div>
+    </section>
+
+    <section data-sezione="scarica" class="scarica">
+      <h2>Scarica i file</h2>
       <div class="riga" style="margin-bottom:10px"><label for="crocini">Riferimenti</label>
         <input type="checkbox" id="crocini">
         <span class="nota">due puntini agli angoli: fanno combaciare gli SVG da soli</span>
@@ -11447,8 +11473,13 @@ const stato = { g: null, cfg: null, logo: null, immagine: null, svgTracciato: nu
                 sottili: { aperto: false, mostra: false, ingrossa: false },
                 /* La lista di nomi preparata: i pezzi, dove stanno sul piatto, e
                    se l'anteprima mostra il piatto invece del nome singolo.
-                   Qualunque ritocco al pannello la butta: va rifatta. */
-                lista: null };
+                   Si rifa' da se' a ogni ritocco (preparando e' quella in
+                   costruzione); intanto resta in vista quella di prima. */
+                lista: null, preparando: null, vistaPiatto: true, versioneFont: 0,
+                /* L'SVG dell'anteprima e' disegnato grande quanto lo zoom
+                   (vedi applicaVista): dim e' la sua misura a zoom 1, zCotto
+                   lo zoom a cui e' disegnato adesso. */
+                dim: { w: 0, h: 0 }, zCotto: 1 };
 
 /* 1 mm sullo schermo: un pixel CSS vale 1/96 di pollice, quindi a zoom 1 il
    pezzo si vede piu' o meno a grandezza naturale (dipende dal monitor). */
@@ -11566,37 +11597,64 @@ const coloriParti = (g, cfg) => slotParti(g, cfg).map(coloreSlot);
 
 function disegna(g) {
   // col piatto della lista in vista, il nome singolo aspetta dietro
-  if (stato.lista && stato.lista.inVista) return;
-  // l'SVG e' grande quanto il pezzo vero: cosi' zoom 1 = grandezza naturale
-  $('#palco').innerHTML =
-    `<svg width="${(g.W * PXMM).toFixed(2)}" height="${(g.H * PXMM).toFixed(2)}" ` +
-    `viewBox="0 0 ${g.W} ${g.H}">` +
+  if (piattoInVista()) return;
+  mettiSvg(g.W, g.H,
     `<path fill="${coloreSlot(stato.cfg.slotBase)}" fill-rule="evenodd" d="${g.dBase}"/>` +
     coloriParti(g, stato.cfg).map((c, i) => `<path fill="${c}" fill-rule="evenodd" d="${g.parti[i].d}"/>`).join('') +
-    (stato.sottili.mostra && g.zone ? `<path fill="#FF2E88" fill-rule="evenodd" d="${g.zone}"/>` : '') +
-    `</svg>`;
+    (stato.sottili.mostra && g.zone ? `<path fill="#FF2E88" fill-rule="evenodd" d="${g.zone}"/>` : ''));
   $('#vuoto').textContent = '';
   if (stato.adattato) applicaVista();
   else { stato.adattato = adattaVista(); applicaVista(); }
 }
 
+/* Zoom 1 = grandezza naturale: un pezzo largo W mm e' largo W·PXMM px. Lo
+   si scrive gia' allo zoom di adesso, cosi' il disegno nuovo e' nitido
+   subito e non dopo la cottura. */
+function mettiSvg(W, H, contenuto) {
+  stato.dim = { w: W * PXMM, h: H * PXMM };
+  const z = stato.zCotto;
+  $('#palco').innerHTML = `<svg width="${(stato.dim.w * z).toFixed(2)}" height="${(stato.dim.h * z).toFixed(2)}" ` +
+    `viewBox="0 0 ${W} ${H}">${contenuto}</svg>`;
+}
+
+/* Lo zoom si fa in due tempi. Mentre la rotella o le dita si muovono e'
+   una scala CSS, che la scheda grafica applica a un'immagine gia' fatta:
+   e' immediata anche su un logo tracciato da centomila punti, ma quella
+   immagine e' stata disegnata a un'altra grandezza, e ingrandita sgrana
+   (a 458% i bordi di «Viola» erano scalini di quattro pixel). Appena ci si
+   ferma l'SVG si ridisegna grande quanto si vede e la scala torna 1
+   (cuoci): i bordi tornano vettoriali, nitidi come nel 3D. */
+let timerCottura = null;
+
 function applicaVista() {
-  const v = stato.vista;
-  $('#palco').style.transform = `translate(${v.x.toFixed(1)}px,${v.y.toFixed(1)}px) scale(${v.z})`;
+  const v = stato.vista, k = v.z / stato.zCotto;
+  $('#palco').style.transform = `translate(${v.x.toFixed(1)}px,${v.y.toFixed(1)}px) scale(${k})`;
   $('#zoomVal').textContent = stato.tre ? 'adatta' : Math.round(v.z * 100) + '%';
+  clearTimeout(timerCottura);
+  if (Math.abs(k - 1) > 1e-6) timerCottura = setTimeout(cuoci, 140);
+}
+
+function cuoci() {
+  const svg = $('#palco svg');
+  stato.zCotto = stato.vista.z;
+  if (svg) {
+    svg.setAttribute('width', (stato.dim.w * stato.zCotto).toFixed(2));
+    svg.setAttribute('height', (stato.dim.h * stato.zCotto).toFixed(2));
+  }
+  applicaVista();
 }
 
 /* Restituisce false se la finestra non e' ancora impaginata: in quel caso il
    riquadro misura zero e l'adattamento verrebbe sbagliato. Ci riprova il
    ResizeObserver appena l'anteprima prende le sue dimensioni vere. */
 function adattaVista() {
-  const g = stato.lista && stato.lista.inVista ? stato.lista.tela : stato.g;
+  const g = piattoInVista() ? stato.lista.tela : stato.g;
   if (!g) return false;
   const t = $('#tela').getBoundingClientRect();
   if (t.width < 40 || t.height < 40) return false;
   const z = Math.min((t.width - 60) / (g.W * PXMM), (t.height - 60) / (g.H * PXMM));
   stato.vista = { z: Math.max(0.05, Math.min(z, 12)), x: 0, y: 0 };
-  applicaVista();
+  cuoci();
   return true;
 }
 
@@ -11692,7 +11750,7 @@ function collegaVista() {
       return;
     }
     if (a === 'adatta') adattaVista();
-    else if (a === 'vero') { stato.vista = { z: 1, x: 0, y: 0 }; applicaVista(); }
+    else if (a === 'vero') { stato.vista = { z: 1, x: 0, y: 0 }; cuoci(); }
     else zoomaVerso(a === 'piu' ? 1.25 : 1 / 1.25, 0, 0);
   });
   $('#tre').addEventListener('click', () => accendi3D(!stato.tre));
@@ -11782,9 +11840,10 @@ function messaggio(cls, testo) { return `<div class="msg ${cls}">${testo}</div>`
 
 function aggiorna() {
   disegnaSlot();      // anche un logo appena letto ha le sue righe da riempire
-  if (stato.lista) buttaLista();      // anche a meta': il ciclo se ne accorge e si ferma
+  riassumi();
   const cfg = leggiCfg();
   stato.cfg = cfg;
+  if (!inLista(cfg)) lasciaLista();
   let g;
   if (inLista(cfg) && !cfg.testo)
     g = { errore: nomiDellaLista(cfg.lista).length
@@ -11797,6 +11856,7 @@ function aggiorna() {
 
   if (g.errore) {
     stato.g = null;
+    lasciaLista();
     $('#palco').innerHTML = '';
     $('#vuoto').textContent = g.errore;
     $('#info').innerHTML = messaggio('errore', g.errore);
@@ -11805,6 +11865,7 @@ function aggiorna() {
     return;
   }
   stato.g = g;
+  if (inLista(cfg)) programmaLista(cfg);
   disegna(g);
   if (stato.tre) programma3D();
   costruisciScaricamenti(g);
@@ -11859,13 +11920,17 @@ function rifinisci(g, cfg) {
 }
 
 function scriviInfo(g, cfg) {
-  if (stato.lista && stato.lista.inVista) return;     // sotto il piatto c'e' il suo riassunto
-  let html = inLista(cfg)
-    ? messaggio('ok', `Anteprima: <b>«${esc(cfg.testo.replace('\n', ' '))}»</b>, il nome più largo della lista. ` +
-        `Gli altri avranno le lettere della stessa grandezza: prepara la lista per vedere il piatto.`)
-    : '';
+  const lista = inLista(cfg), largo = esc(cfg.testo.replace('\n', ' '));
+  /* In modo lista sopra c'e' il piatto, se e' in vista; misure e avvisi
+     restano quelli del nome piu' largo, che decide la scala di tutti: e'
+     da qui che si accende la correzione dei tratti sottili. */
+  let html = !lista ? ''
+    : piattoInVista() ? messaggioPiatto()
+    : messaggio('ok', `Anteprima: <b>«${largo}»</b>, il nome più largo della lista. ` +
+        `Gli altri avranno le lettere della stessa grandezza` +
+        (stato.lista ? `: il piatto si vede con «Mostra il piatto».` : `: il piatto arriva appena la lista è pronta.`));
   html +=
-    `<div class="dato"><span>pezzo</span> <b>${g.W} × ${g.H} mm</b></div>` +
+    `<div class="dato"><span>${lista ? 'il più largo' : 'pezzo'}</span> <b>${g.W} × ${g.H} mm</b></div>` +
     `<div class="dato"><span>disegno</span> <b>${g.larghezzaTesto} × ${g.altezzaTesto} mm</b></div>` +
     `<div class="dato"><span>bordo</span> <b>${cfg.bordo} mm</b></div>`;
   if (g.pezziBase > 1)
@@ -11887,6 +11952,9 @@ function scriviInfo(g, cfg) {
   if (g.avvisi && g.avvisi.length)
     html += messaggio('avviso', `Nell'SVG ci sono cose che non so trasformare in geometria ` +
       `(<b>${g.avvisi.join(', ')}</b>): quelle parti non finiscono nel pezzo.`);
+  /* La lista esce solo come .3mf, gia' montato: l'allineamento degli SVG
+     non la riguarda. */
+  if (lista) { $('#info').innerHTML = html; return; }
   /* Nello slicer la Y cresce verso l'alto, nell'SVG verso il basso: si gira il segno. */
   const segno = (v) => v === 0 ? '0' : (v > 0 ? '+' : '') + v;
   const fuori = g.parti.filter(p => Math.abs(p.scarto.x) >= 0.02 || Math.abs(p.scarto.y) >= 0.02);
@@ -12063,10 +12131,10 @@ function costruisciScaricamenti(g) {
   /* In modo lista i file del nome singolo non hanno senso: si scarica la
      lista, preparata nel suo riquadro. */
   if (inLista(cfg)) {
-    $('#scaricamenti').innerHTML = stato.lista && !stato.lista.inCorso
+    $('#scaricamenti').innerHTML = stato.lista && !stato.preparando
       ? `<button class="azione" data-lista="scarica">Scarica la lista (.3mf)</button>`
-      : `<div class="nota" style="margin:4px 0 10px">Prepara la lista (qui sopra, in «Lista di nomi») ` +
-        `e poi scaricala da qui o da lì: un .3mf solo con tutti i nomi.</div>`;
+      : `<div class="nota" style="margin:4px 0 10px">La lista si sta preparando: il bottone ` +
+        `per scaricarla arriva appena è pronta, un .3mf solo con tutti i nomi.</div>`;
     return;
   }
   const alto = (n) => String(Math.round(n * 100) / 100).replace('.', ',');
@@ -12137,38 +12205,97 @@ function disponi(voci, L, P, spazio) {
    conta poco: lo slicer sposta tutto in blocco e si preme «Disponi». */
 const PASSO_PIATTI = 1.2;
 
+/* La lista si rifa' da se' a ogni ritocco, un attimo dopo l'ultimo: prima
+   c'era un bottone, e dopo ogni ritocco andava ripremuto per vedere i nomi
+   come sarebbero usciti. La chiave dice se il ritocco cambia i pezzi: piatto,
+   spazio e bobine li spostano o li ricolorano soltanto, e quelli si
+   rifanno subito senza ricostruire niente (trenta nomi in Pacifico sono
+   5,7 s). La correzione dei tratti sottili e un font caricato dal disco
+   non stanno fra i campi, e nella chiave ci vanno a parte. */
+const FUORI_CHIAVE = ['logo', 'coloriAttivi', 'incassaColori', 'slotColori', 'piatto', 'spazioLista',
+                      'slot1', 'slot2', 'slot3', 'slot4', 'slotBase', 'slotTesto'];
+const ATTESA_LISTA = 350;
+let timerLista = null;
+
+function chiaveLista(cfg) {
+  const c = Object.assign({}, cfg, { ingrossa: stato.sottili.ingrossa, versioneFont: stato.versioneFont });
+  for (const k of FUORI_CHIAVE) delete c[k];
+  return JSON.stringify(c);
+}
+
+const piattoInVista = () => !!(stato.lista && stato.vistaPiatto);
+
+function programmaLista(cfg) {
+  const chiave = chiaveLista(cfg), lista = stato.lista;
+  if (lista && lista.chiave === chiave) {
+    // gli stessi pezzi: si ferma una costruzione partita per niente, e si ridispone
+    clearTimeout(timerLista); stato.preparando = null;
+    ridisponi(lista, cfg);
+    if (piattoInVista()) mostraPiatto();
+    scriviStatoLista();
+    return;
+  }
+  if (stato.preparando && stato.preparando.chiave === chiave) return;
+  clearTimeout(timerLista);
+  // un oggetto nuovo: la costruzione di prima se ne accorge e si ferma
+  const lavoro = stato.preparando = { chiave, fatti: 0, quanti: nomiDellaLista(cfg.lista).length };
+  timerLista = setTimeout(() => preparaLista(cfg, lavoro), ATTESA_LISTA);
+  segnaAttesa();
+  scriviStatoLista();
+}
+
 /* Costruisce tutti i nomi, uno alla volta lasciando respirare la pagina, e
    li dispone. Tutti alla stessa scala, quella del piu' largo: la misura
    chiesta vale per lui, e gli altri hanno lettere della stessa grandezza. */
-async function preparaLista() {
-  const cfg = leggiCfg();
+async function preparaLista(cfg, lavoro) {
   const nomi = nomiDellaLista(cfg.lista);
-  const box = $('#statoLista');
-  if (!nomi.length) { box.innerHTML = messaggio('avviso', 'Scrivi almeno un nome, uno per riga.'); return; }
   const scale = nomi.map(n => Motore.scalaTesto(Object.assign({}, cfg, { testo: n })));
   const buone = scale.filter(k => k > 0);
-  if (!buone.length) { box.innerHTML = messaggio('errore', 'Nessun nome si può scrivere con queste misure.'); return; }
+  // senza nomi buoni aggiorna lo dice gia', e qui non si arriva
+  if (!buone.length || stato.preparando !== lavoro) return;
   const scala = Math.min(...buone), largo = nomi[scale.indexOf(scala)];
-  const [L, P] = cfg.piatto.split('x').map(Number);
-  const lista = stato.lista = { inCorso: true, voci: [], cfg, L, P, largo };
-  $('#preparaLista').disabled = true;
+  const voci = [];
   const t0 = performance.now();
   for (let i = 0; i < nomi.length; i++) {
-    if (stato.lista !== lista) return;            // buttata da un ritocco
-    box.innerHTML = `<div class="nota">Preparo ${i + 1} di ${nomi.length}: <b>${esc(nomi[i].replace('\n', ' '))}</b>…</div>`;
+    if (stato.preparando !== lavoro) return;            // superata da un ritocco
+    lavoro.fatti = i;
+    segnaAttesa();
     await new Promise(r => setTimeout(r, 0));
-    lista.voci.push(costruisciNome(nomi[i], scale[i] > 0 ? scala : 0, cfg));
+    if (stato.preparando !== lavoro) return;
+    voci.push(costruisciNome(nomi[i], scale[i] > 0 ? scala : 0, cfg));
   }
-  if (stato.lista !== lista) return;
-  lista.inCorso = false;
-  lista.ms = Math.round(performance.now() - t0);
-  const buoni = lista.voci.filter(v => v.g);
-  lista.piatti = disponi(buoni, L, P, cfg.spazioLista || 5);
-  lista.tela = { W: lista.piatti * L + (lista.piatti - 1) * (PASSO_PIATTI - 1) * L, H: P };
-  $('#preparaLista').disabled = false;
-  mostraPiatto(true);
+  if (stato.preparando !== lavoro) return;
+  const lista = { voci, largo, chiave: lavoro.chiave, ms: Math.round(performance.now() - t0) };
+  ridisponi(lista, cfg);
+  stato.lista = lista; stato.preparando = null;
+  segnaAttesa();
+  if (piattoInVista()) mostraPiatto();
+  else if (stato.g) scriviInfo(stato.g, stato.cfg);
   scriviStatoLista();
   if (stato.g) costruisciScaricamenti(stato.g);
+}
+
+/* Piatto, spazio fra i pezzi e bobine: si rimettono i pezzi gia' fatti. */
+function ridisponi(lista, cfg) {
+  const [L, P] = cfg.piatto.split('x').map(Number);
+  const buoni = lista.voci.filter(v => v.g);
+  for (const v of buoni) Object.assign(v.opz, {
+    coloreBase: coloreSlot(cfg.slotBase), coloriParti: v.g.parti.map(() => coloreSlot(cfg.slotTesto)),
+    slotBase: cfg.slotBase, slotParti: v.g.parti.map(() => cfg.slotTesto)
+  });
+  lista.cfg = cfg; lista.L = L; lista.P = P;
+  lista.piatti = disponi(buoni, L, P, cfg.spazioLista || 5);
+  lista.tela = { W: lista.piatti * L + (lista.piatti - 1) * (PASSO_PIATTI - 1) * L, H: P };
+}
+
+/* Mentre la lista si rifa', il piatto di prima resta velato e al centro
+   si legge a che punto e'. */
+function segnaAttesa() {
+  const p = stato.preparando, velato = !!p && piattoInVista();
+  $('#palco').classList.toggle('vecchio', velato);
+  if (piattoInVista()) $('#vuoto').textContent = velato ? `Aggiorno la lista: ${p.fatti + 1} di ${p.quanti}…` : '';
+  const riga = $('#statoLista .avanza');
+  if (riga) riga.textContent = p ? `Aggiorno la lista: ${p.fatti + 1} di ${p.quanti}…` : '';
 }
 
 /* Un nome della lista: il pezzo alla scala comune, controllato, ingrossato
@@ -12203,16 +12330,12 @@ function costruisciNome(nome, scala, cfg) {
   return voce;
 }
 
-/* L'anteprima mostra il piatto (o i piatti) invece del nome singolo. */
-function mostraPiatto(si) {
+/* L'anteprima mostra il piatto (o i piatti) invece del nome singolo. La
+   vista si riadatta solo se il piatto cambia misura: rifatta la lista per
+   un ritocco, lo zoom resta dov'era. */
+function mostraPiatto() {
   const lista = stato.lista;
-  if (!lista || lista.inCorso) return;
-  lista.inVista = si;
-  if (!si) {
-    if (stato.g) { stato.adattato = false; disegna(stato.g); scriviInfo(stato.g, stato.cfg); }
-    return;
-  }
-  if (stato.tre) accendi3D(false);
+  if (!lista) return;
   const { L, P } = lista, cfg = lista.cfg, T = lista.tela;
   let svg = '';
   for (let k = 0; k < lista.piatti; k++)
@@ -12225,23 +12348,42 @@ function mostraPiatto(si) {
       g.parti.map(p => `<path fill="${coloreSlot(cfg.slotTesto)}" fill-rule="evenodd" d="${p.d}"/>`).join('') +
       `</g>`;
   }
-  $('#palco').innerHTML = `<svg width="${(T.W * PXMM).toFixed(2)}" height="${(T.H * PXMM).toFixed(2)}" ` +
-    `viewBox="0 0 ${T.W} ${T.H}">${svg}</svg>`;
+  const misura = T.W + 'x' + T.H, stessa = stato.adattato && stato.misuraVista === misura;
+  mettiSvg(T.W, T.H, svg);
   $('#vuoto').textContent = '';
-  stato.adattato = adattaVista();
-  // sotto l'anteprima, al posto degli avvisi del nome singolo
-  const n = lista.piatti;
-  $('#info').innerHTML = messaggio(n > 1 ? 'avviso' : 'ok', n > 1
+  stato.misuraVista = misura;
+  if (stessa) applicaVista(); else stato.adattato = adattaVista();
+  segnaAttesa();
+  if (stato.g) scriviInfo(stato.g, stato.cfg);
+}
+
+/* Sotto l'anteprima, sopra gli avvisi del nome piu' largo. */
+function messaggioPiatto() {
+  const { piatti: n, L, P } = stato.lista;
+  return messaggio(n > 1 ? 'avviso' : 'ok', n > 1
     ? `Il piatto della lista: <b>${n} piatti</b> da ${L} × ${P}. Nello slicer premi <b>«Disponi»</b> (tasto A).`
     : `Il piatto della lista: tutto su un piatto da ${L} × ${P}.`);
 }
 
+/* Col piatto o col nome piu' largo: il tasto sotto l'elenco. */
+function vediPiatto(si) {
+  stato.vistaPiatto = si;
+  stato.adattato = false;
+  if (si) { if (stato.tre) accendi3D(false); mostraPiatto(); }
+  else {
+    $('#palco').classList.remove('vecchio');
+    if (stato.g) { disegna(stato.g); scriviInfo(stato.g, stato.cfg); }
+  }
+  scriviStatoLista();
+}
+
 function scriviStatoLista() {
-  const lista = stato.lista;
-  if (!lista || lista.inCorso) return;
+  const lista = stato.lista, p = stato.preparando;
+  const avanza = p ? `Aggiorno la lista: ${p.fatti + 1} di ${p.quanti}…` : '';
+  if (!lista) { $('#statoLista').innerHTML = p ? `<div class="nota avanza">${avanza}</div>` : ''; return; }
   const buoni = lista.voci.filter(v => v.g), mm = (n) => String(Math.round(n * 10) / 10).replace('.', ',');
   const quanti = buoni.length, n = lista.piatti;
-  let html = messaggio(n > 1 ? 'avviso' : 'ok',
+  let html = `<div class="nota avanza">${avanza}</div>` + messaggio(n > 1 ? 'avviso' : 'ok',
     `<b>${quanti} ${quanti === 1 ? 'nome' : 'nomi'}</b>, lettere alla scala di «${esc(lista.largo.replace('\n', ' '))}», ` +
     `il più largo · ` + (n <= 1
       ? `stanno tutti su un piatto da ${lista.L} × ${lista.P}: nello slicer si aprono già disposti.`
@@ -12254,9 +12396,9 @@ function scriviStatoLista() {
       `<span>${mm(v.g.W)} × ${mm(v.g.H)} mm${v.avvisi.length ? ' · ' + esc(v.avvisi.join(' · ')) : ''}</span></div>`;
   }).join('') + `</div>`;
   if (quanti)
-    html += `<button type="button" class="azione" data-lista="scarica">Scarica la lista (.3mf)</button>` +
+    html += `<button type="button" class="azione" data-lista="scarica"${p ? ' disabled' : ''}>Scarica la lista (.3mf)</button>` +
       `<div class="riga piena" style="margin-top:6px"><button type="button" class="azione secondaria minuscolo" ` +
-      `data-lista="vista">${lista.inVista ? 'Torna al nome singolo' : 'Mostra il piatto'}</button></div>`;
+      `data-lista="vista">${piattoInVista() ? 'Mostra il nome più largo' : 'Mostra il piatto'}</button></div>`;
   $('#statoLista').innerHTML = html;
 }
 
@@ -12270,7 +12412,7 @@ async function scaricaLista() {
 
 async function byteLista(quando) {
   const lista = stato.lista;
-  if (!lista || lista.inCorso) return null;
+  if (!lista || stato.preparando) return null;
   const elenco = lista.voci.filter(v => v.g).map(v => ({
     g: v.g, opz: v.opz, nome: v.nome.replace('\n', ' '),
     x: v.piatto * lista.L * PASSO_PIATTI + v.x, y: lista.P - (v.y + v.h) }));
@@ -12279,12 +12421,15 @@ async function byteLista(quando) {
   return { byte: await window.Zip.compresso(voci, quando), quanti: elenco.length };
 }
 
-/* Un ritocco qualunque al pannello: la lista preparata non vale piu'. */
-function buttaLista() {
-  const eraInVista = stato.lista && stato.lista.inVista;
-  stato.lista = null;
-  $('#preparaLista').disabled = false;
+/* Fuori dal modo lista (un nome, un logo, nessun nome scrivibile): la
+   lista non c'e' piu', e una costruzione a meta' si ferma. */
+function lasciaLista() {
+  if (!stato.lista && !stato.preparando) return;
+  const eraInVista = piattoInVista();
+  clearTimeout(timerLista);
+  stato.lista = stato.preparando = null;
   $('#statoLista').innerHTML = '';
+  $('#palco').classList.remove('vecchio');
   if (eraInVista) stato.adattato = false;
 }
 
@@ -12782,6 +12927,61 @@ function allineaSlider() {
   });
 }
 
+/* ---- le sezioni del pannello ---- */
+
+/* Ogni sezione si chiude toccando il titolo, e si ricorda come la si e'
+   lasciata. Di partenza restano chiuse quelle che si toccano di rado:
+   le misure del solido, l'asola, le bobine, lo sfondo. */
+const CHIAVE_SEZIONI = 'portachiavi3d.sezioni';
+const CHIUSE_DI_PARTENZA = ['asola', 'bobine', 'anteprima', 'solido'];
+
+function collegaSezioni() {
+  let memoria = {};
+  try { memoria = JSON.parse(localStorage.getItem(CHIAVE_SEZIONI) || '{}') || {}; } catch (e) {}
+  document.querySelectorAll('#pannello section[data-sezione]').forEach(sez => {
+    const id = sez.dataset.sezione, h = sez.querySelector('h2');
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'apri';
+    b.innerHTML = `<span>${h.innerHTML}</span><span class="riassunto"></span>`;
+    h.replaceChildren(b);
+    const chiudi = (chiusa) => {
+      sez.classList.toggle('chiusa', chiusa);
+      b.setAttribute('aria-expanded', String(!chiusa));
+    };
+    chiudi(id in memoria ? !!memoria[id] : CHIUSE_DI_PARTENZA.includes(id));
+    b.addEventListener('click', () => {
+      memoria[id] = !sez.classList.contains('chiusa');
+      chiudi(memoria[id]);
+      try { localStorage.setItem(CHIAVE_SEZIONI, JSON.stringify(memoria)); } catch (e) {}
+    });
+  });
+}
+
+/* Quello che si legge accanto al titolo di una sezione chiusa. */
+const numero = (id) => String(parseFloat($('#' + id).value) || 0).replace('.', ',');
+const pastigliaSlot = (n) => `<i class="pastiglia" style="background:${coloreSlot(n)}"></i>`;
+const RIASSUNTI = {
+  testo: () => esc($('#testo').value.split('\n')[0]),
+  lista: () => { const n = nomiDellaLista($('#lista').value).length; return n === 1 ? '1 nome' : n + ' nomi'; },
+  carattere: () => esc((document.querySelector('.vocefont[aria-checked=true] .etichetta') || {}).textContent || ''),
+  logo: () => stato.logo ? esc(stato.logo.nomeFile || 'caricato') : 'nessuno',
+  dimensioni: () => `${numero('dimensione')} mm in ${$('#adattaA').value} · bordo ${numero('bordoN')} mm`,
+  asola: () => $('#asola').checked
+    ? `foro ${numero('foro')} mm, ${$('#posAsola').selectedOptions[0].textContent}` : 'nessuna',
+  bobine: () => `base ${pastigliaSlot(+$('#slotBase').value || 1)}` +
+    (modoAttuale() === 'testo' ? ` · scritta ${pastigliaSlot(+$('#slotTesto').value || 2)}` : ''),
+  anteprima: () => `avvisa sotto ${numero('minSpessore')} mm`,
+  solido: () => `base ${numero('spesBase')} + dettaglio ${numero('spesParte')} mm` +
+    ($('#sede').checked ? ' · sede incassata' : '')
+};
+
+function riassumi() {
+  for (const [id, f] of Object.entries(RIASSUNTI)) {
+    const el = document.querySelector(`section[data-sezione="${id}"] .riassunto`);
+    if (el) el.innerHTML = f();
+  }
+}
+
 /* ---- modalità ---- */
 function scegliModo(modo) {
   document.querySelectorAll('.scheda[data-modo]').forEach(b =>
@@ -12792,6 +12992,7 @@ function scegliModo(modo) {
 /* ---- avvio ---- */
 function avvia() {
   registraFontFace();
+  collegaSezioni();
   costruisciListaFont();
   costruisciSfondi();
   scegliFont(Object.keys(FONT_DATA)[0]);
@@ -12829,7 +13030,6 @@ function avvia() {
 
   $('#ripristina').addEventListener('click', () => { tornaAiPredefiniti(); rigenera(); });
 
-  $('#preparaLista').addEventListener('click', () => { preparaLista(); });
   $('#sceltaQuanti').addEventListener('click', (e) => {
     const b = e.target.closest('[data-quanti]');
     if (!b || b.dataset.quanti === $('#quanti').value) return;
@@ -12843,7 +13043,7 @@ function avvia() {
     const b = e.target.closest('[data-lista]');
     if (!b) return;
     if (b.dataset.lista === 'scarica') scaricaLista();
-    if (b.dataset.lista === 'vista') { mostraPiatto(!stato.lista.inVista); scriviStatoLista(); }
+    if (b.dataset.lista === 'vista') vediPiatto(!piattoInVista());
   });
 
   $('#scaricamenti').addEventListener('click', (e) => {
@@ -12963,6 +13163,7 @@ function avvia() {
         const ff = new FontFace('pk-custom', fr.result);
         ff.load().then(x => document.fonts.add(x)).catch(() => {});
         b.querySelector('.campione').style.fontFamily = "'pk-custom'";
+        stato.versioneFont++;      // stesso id «custom», lettere diverse: la lista va rifatta
         scegliFont('custom'); aggiornaCampioni(); aggiorna(); salva();
       } catch (err) {
         alert('Non riesco a leggere questo font.\n(' + err.message + ')\nUsa un file .ttf, .otf o .woff');
@@ -12980,7 +13181,7 @@ document.addEventListener('DOMContentLoaded', avvia);
    __pk3d.fileSVG(__pk3d.costruisci({modo:'testo', testo:'Ciao', ...}), 'base') */
 window.__pk3d = { costruisci, fileSVG, leggiCfg, esportaPacchetto, leggimi, caricaImmagine, caricaLogo,
                   scaricaSolido, opzioniSolido, tornaAiPredefiniti, FONT_DATA, stato,
-                  preparaLista, scaricaLista, byteLista, disponi };
+                  scaricaLista, byteLista, disponi };
 })();
 </script>
 </body>
